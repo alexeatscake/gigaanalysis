@@ -15,13 +15,13 @@ from .data import *
 
 def invert_x(data_set):
     """
-This inverts the x data and then reinterpolates the y points so the x
-data is evenly spread.
-Args:
-    data_set (Data): The data object to invert x
-Returns:
-    A data object with inverted x and evenly spaced x
-"""
+    This inverts the x data and then reinterpolates the y points so the x
+    data is evenly spread.
+    Args:
+        data_set (Data): The data object to invert x
+    Returns:
+        A data object with inverted x and evenly spaced x
+    """
     if not np.all(data_set.x[:-1] <= data_set.x[1:]):
         raise ValueError('Array to invert not sorted!')
     interp = interp1d(*data_set.both, bounds_error=False,
