@@ -1,15 +1,15 @@
 """
-
-Giga Analysis - Fitting
+GigaAnalysis - Fitting
 
 """
+
+from .data import *
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit as sp_curve_fit
 
-from .data import *
 
 
 class Fit_result():
@@ -112,3 +112,27 @@ def curve_fit(data_set, func, p0=None, full=True, **kwargs):
         results, residuals = None, None
     return Fit_result(func, popt, pcov, results, residuals)
 
+
+def any_poly(x_data, *p_vals):
+    """
+    This can be used to calculate things
+
+    """
+    # Pass data via numpy.array to prep for ga.Data
+    x_data = np.array(x_data)
+    x_data = np.reshape(x_data, (x_data.size))
+    # Calculate values
+    results = Data(x_data, x_data)*0
+    for n, p in enumerate(p_vals[::-1]):
+        results += p*np.power(x_data, n)
+    return results
+
+def poly_fit(data_set, order, full=True):
+    popt, pcov = np.polyfit(data_set.x, data_set.y, order, cov=True)
+    func = lambda x_data: any_poly(x_data, *popt)
+    if full:
+        results = Data(data_set.x, func(data_set.x, *popt))
+        residuals = data_set - results
+    else:
+        results, residuals = None, None
+    return Fit_result(func, popt, pcov, results, residuals)

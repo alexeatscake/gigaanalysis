@@ -1,6 +1,6 @@
 
 """
-Giga Analysis - Data
+GigaAnalysis - Data
 
 This holds the data class and the functions that will manipulate them.
 
@@ -350,6 +350,10 @@ Args:
 Returns:
     A new data set with evenly interpolated points.
 '''
+        if np.min(self.x) > min_x:
+            raise ValueError('min_x value to interpolate is below data')
+        if np.max(self.x) < max_x:
+            raise ValueError('max_x value to interpolate is above data')
         x_vals = np.arange(min_x, max_x, step_size)
         return Data(x_vals,
                 interp1d(self.x, self.y, **kwargs)(x_vals))
@@ -367,6 +371,10 @@ Args:
     max_y (float): The maximum x value in the interpolation
     step_size (float): The step size between each point
 '''
+        if np.min(self.x) > min_x:
+            raise ValueError('min_x value to interpolate is below data')
+        if np.max(self.x) < max_x:
+            raise ValueError('max_x value to interpolate is above data')
         x_vals = np.arange(min_x, max_x, step_size)
         y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
         self.values = np.concatenate((x_vals[:, None], y_vals[:, None]),

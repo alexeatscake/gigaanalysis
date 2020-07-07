@@ -4,13 +4,13 @@ Giga Analysis - Quantum Oscillations
 
 """
 
+from .data import *
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter, get_window, find_peaks
-
-from .data import *
 
 
 def invert_x(data_set):
@@ -42,6 +42,9 @@ Args:
 Returns:
     A data object of smoothed data.
 """
+    if (np.max(data_set.x) - np.min(data_set.x)) < x_window:
+        raise ValueError(
+            "The loess window is longer than the given data range")
     spacing = data_set.x[1] - data_set.x[0]
     if not np.isclose(spacing, np.diff(data_set.x)).all():
         raise ValueError('The data needs to be evenly spaced to smooth')
@@ -201,6 +204,13 @@ Attributes:
         self.raw = data
         self.min_field = min_field
         self.max_field = max_field
+
+        if np.min(self.raw.x) > min_field:
+            raise ValueError(
+                "max_field value to interpolate is below data")
+        if np.max(self.raw.x) < max_field:
+            raise ValueError(
+                "max_field value to interpolate is above data")
         
         if step_size == None:
             self.step_size = np.abs(np.average(np.diff(data.x)))/4
@@ -383,8 +393,8 @@ Attributes:
         in inverse field
     fft (ga.Data): The flourier transform of the inverse
 """
-    def __init__(self, data_list, min_field, max_field, loess_win, loess_poly,
-                step_size=None, fft_cut=0):
+    def __init__(self, data_list, min_field, max_field, loess_win,
+            loess_poly, step_size=None, fft_cut=0):
         if type(data_list) != list:
             raise TypeError('Not given a list of ga.Data class\n' \
                             'Was given {}'.format(type(data_list)))
