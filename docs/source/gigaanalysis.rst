@@ -1,21 +1,15 @@
 gigaanalysis package
 ====================
 
-Submodules
-----------
+.. automodule:: gigaanalysis
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 gigaanalysis.data module
 ------------------------
 
 .. automodule:: gigaanalysis.data
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-gigaanalysis.diglock module
----------------------------
-
-.. automodule:: gigaanalysis.diglock
    :members:
    :undoc-members:
    :show-inheritance:
@@ -28,14 +22,6 @@ gigaanalysis.fit module
    :undoc-members:
    :show-inheritance:
 
-gigaanalysis.highfield module
------------------------------
-
-.. automodule:: gigaanalysis.highfield
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 gigaanalysis.qo module
 ----------------------
 
@@ -44,11 +30,22 @@ gigaanalysis.qo module
    :undoc-members:
    :show-inheritance:
 
+gigaanalysis.diglock module
+---------------------------
 
-Module contents
----------------
-
-.. automodule:: gigaanalysis
+.. automodule:: gigaanalysis.diglock
    :members:
    :undoc-members:
    :show-inheritance:
+
+gigaanalysis.highfield module
+-----------------------------
+
+.. automodule:: gigaanalysis.highfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+
+

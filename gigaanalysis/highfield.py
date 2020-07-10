@@ -240,13 +240,19 @@ class PulsedLockIn():
         interact(plotting, phase=FloatSlider(min=0, max=360, step=1,
             value=start_phase, continuous_update=False))
 
-    def plot_Res(self, *args, axis=plt, **kwargs):
+    def plot_Res(self, *args, axis=None, **kwargs):
         """
         This plots the Rxx data
         Includes all the standard arguments from matplotlib.pyplot.plot
-        Args:
-            axis (matplotlib.axes.Axes): An axis that the line is plotted on
+
+        Parameters
+        ----------
+        axis : matplotlib.axes.Axes, optional
+            An axis that the line is plotted on if not given
+            calls :func:`plt.plot`
         """
+        if axis == None:
+            axis = plt
         axis.plot(self.sfield, self.Res, *args, **kwargs)
 
     def save_Res(self, filename, **kwargs):
