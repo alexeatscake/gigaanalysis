@@ -17,17 +17,35 @@ from ipywidgets import interact, FloatSlider # For PulsedLockIn.find_phase
 
 
 def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
-    """
-    Takes data from TDMS file.
+    """Takes data from TDMS file.
     Requires group to be '名称未設定' which is untitled in Japanese.
     Requires field to be labelled 'Field'
-    Args:
-        current (str): The name of the channel the current is measured on
-        voltage (str): The name of the channel the voltage is measured on
-    Returns:
-        Field (np.array): 1d numpy array with field values in
-        current (np.array): 1d numpy array with current readings
-        voltage (np.array): 1d numpy array with voltage readings
+    Makes use of :class:`nptdms.tdms`
+    Parameters
+    ----------
+    file : str
+        The file name of the .tdms file with the data.
+    fieldCH : str
+        The name of the channel that contains the field. This as standard
+        is called 'Field'
+    current : str
+        The name of the channel the current is measured on.
+    voltage : str
+        The name of the channel the voltage is measured on.
+    group : str, optional
+        The name of the group of the the .tdms file, lab view as standard
+        makes this 'Untitled', but if the language is something other than
+        English this will change. It can also be set by the user.
+    
+    Returns
+    -------
+    Field : numpy.ndarray
+        1d numpy array with field values in
+    current : numpy.ndarray
+        1d numpy array with current readings
+    voltage : numpy.ndarray
+        1d numpy array with voltage readings
+
     """
     tdms_file = tdms.TdmsFile(file).as_dataframe()
     return [x for x in tdms_file[["/'{}'/'{}'".format(group, fieldCH),
@@ -36,15 +54,24 @@ def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
                                      ].values.T]
 
 def PUtoB(PU_signal, field_factor, fit_points):
-    '''
-    Converts the voltage from the pick up coil to field.
-    Args:
-        PU_signal (numpy array): The signal from pick up coil
-        field_factor (float): Factor to convert integral to B-field
-        fit_points (int): Number of point at each end to remove offset
-    Returns:
-        A numpy array of magnetic field the same length as PU_signal
-    '''
+    """Converts the voltage from the pick up coil to field. This is 
+    used for pulsed field measurements.
+
+    Parameters
+    ----------
+    PU_signal : numpy.ndarray
+        The signal from pick up coil
+    field_factor : float
+        Factor to convert integral to magnetic field
+    fit_points :int
+        Number of point at each end to remove offset
+    
+    Returns
+    -------
+    field : numpy.ndarray
+        An array of magnetic field the same length as PU_signal
+    
+    """
     count = np.arange(len(PU_signal))
     ends = np.concatenate([count[:fit_points], count[-fit_points:]])
     a, b = np.polyfit(ends, PU_signal[ends], 1)

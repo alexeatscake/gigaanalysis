@@ -13,8 +13,7 @@ from scipy.optimize import curve_fit as sp_curve_fit
 
 
 class Fit_result():
-    """
-    This class is to hold the results of the fits on data objects.
+    """This class is to hold the results of the fits on data objects.
 
     Parameters
     ----------
@@ -45,10 +44,10 @@ class Fit_result():
     residuals : gigaanalysis.data.Data
         The residuals of the fit, will be none
         if full=False when performing the fit.
+
     """
     def __init__(self, func, popt, pcov, results, residuals):
-        """
-        The __init__ method to produce the fit_result class  
+        """The __init__ method to produce the fit_result class  
         The point of this class is to store the results from a gigaanalysis
         fit so the arguments are the same as the attributes.
         """
@@ -74,8 +73,7 @@ class Fit_result():
         return self.popt.size
 
     def predict(self, x_vals):
-        """
-        This takes a value or an array of x_values and calculates the
+        """This takes a value or an array of x_values and calculates the
         predicated y_vales.
 
         Parameters
@@ -87,28 +85,28 @@ class Fit_result():
         -------
         y_vals : gigaanalysis.data.Data
             An Data object with the predicted y_values.
+
         """
         return Data(x_vals, self.func(x_vals, *self.popt))
 
 
 def curve_fit(data_set, func, p0=None, full=True, **kwargs):
-    """
-    This is an implementation of :func:`scipy.optimize.curve_fit`
+    """This is an implementation of :func:`scipy.optimize.curve_fit`
     for acting on :class:`gigaanalysis.data.Data` objects. This performs
     a least squares fit to the data of a function.
 
     Parameters
     ----------
     data_set : gigaanalysis.data.Data
-        The data to perform the fit on
+        The data to perform the fit on.
     func : function
         The model function to fit. It must take the x_values as
         the first argument and the parameters to fit as separate remaining
         arguments.
-    p0 : numpy.ndarray
+    p0 : numpy.ndarray, optional
         Initial guess for the parameters. Is passed to
         scipy.optimize.curve_fit included so it can be addressed
-        positionally.
+        positionally. If `None` unity will be used for every parameter.
     full : bool, optional
         If True fit_result will include residuals if False they will
         not be calculated and only results included.
@@ -119,6 +117,7 @@ def curve_fit(data_set, func, p0=None, full=True, **kwargs):
     -------
     fit_result : gigaanalysis.fit.Fit_result
         A gigaanalysis Fit_result object containing the results
+
     """
     popt, pcov = sp_curve_fit(func, data_set.x, data_set.y, p0=p0, **kwargs)
     if full:
@@ -130,8 +129,7 @@ def curve_fit(data_set, func, p0=None, full=True, **kwargs):
 
 
 def any_poly(x_data, *p_vals, as_Data=False):
-    """
-    The point of this function is to generate the values expected from a
+    """The point of this function is to generate the values expected from a
     linear fit. It is designed to take the values obtained from
     :func:`numpy.polyfit`.
     for a set of p_vals of length n+1  
@@ -145,7 +143,7 @@ def any_poly(x_data, *p_vals, as_Data=False):
     p_vals : float
         These are a series of floats that are the coefficients of the
         polynomial starting with with the highest power.
-    as_Data : bool (optional)
+    as_Data : bool, optional
         If False returns a :class:`numpy.ndarray` which is the default
         behaviour. If True returns a :class:`gigaanalysis.data.Data` object
         with the x values given and the cosponsoring y values.
@@ -154,7 +152,8 @@ def any_poly(x_data, *p_vals, as_Data=False):
     -------
     results : numpy.ndarray or gigaanalysis.data.Data
         The values expected from a polynomial with the 
-        specified coefficients
+        specified coefficients.
+
     """
     results = x_data*0
     for n, p in enumerate(p_vals[::-1]):
@@ -165,8 +164,7 @@ def any_poly(x_data, *p_vals, as_Data=False):
         return results
 
 def poly_fit(data_set, order, full=True):
-    """
-    This function fits a polynomial of a certain order to a given
+    """This function fits a polynomial of a certain order to a given
     data set. It uses :func:`numpy.polyfit` for the fitting. The function
     which is to produce the data is :func:`gigaanalysis.fit.any_poly`.
 
@@ -186,6 +184,7 @@ def poly_fit(data_set, order, full=True):
         A gigaanalysis Fit_result object containing the results the
         fit parameters are the coefficients of the polynomial. Follows the
         form of :func:`gigaanalysis.fit.any_poly`.
+    
     """
     popt, pcov = np.polyfit(data_set.x, data_set.y, order, cov=True)
     func = any_poly
