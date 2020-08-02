@@ -1,5 +1,4 @@
-"""
-GigaAnalysis - High Field
+"""GigaAnalysis - High Field
 
 This program has a series of useful tools for conducting experiments in
 certain high field labs.
@@ -14,6 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import nptdms as tdms  # For read_ISSP
 from ipywidgets import interact, FloatSlider # For PulsedLockIn.find_phase
+from scipy.signal import savgol_filter  # For PulsedLockIn.lockin_Volt_smooth
 
 
 def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
@@ -21,6 +21,7 @@ def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
     Requires group to be '名称未設定' which is untitled in Japanese.
     Requires field to be labelled 'Field'
     Makes use of :class:`nptdms.tdms`
+
     Parameters
     ----------
     file : str
@@ -33,9 +34,9 @@ def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
     voltage : str
         The name of the channel the voltage is measured on.
     group : str, optional
-        The name of the group of the the .tdms file, lab view as standard
-        makes this 'Untitled', but if the language is something other than
-        English this will change. It can also be set by the user.
+        The name of the group of the the .tdms file. LabView as standard
+        makes this 'Untitled', but if the set language is something other
+        than English this will change. It can also be set by the user.
     
     Returns
     -------
@@ -53,7 +54,8 @@ def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
                                      "/'{}'/'{}'".format(group, voltageCH)]
                                      ].values.T]
 
-def PUtoB(PU_signal, field_factor, fit_points):
+
+def PUtoB(PU_signal, field_factor, fit_points, to_fit='PU'):
     """Converts the voltage from the pick up coil to field. This is 
     used for pulsed field measurements.
 
@@ -63,8 +65,10 @@ def PUtoB(PU_signal, field_factor, fit_points):
         The signal from pick up coil
     field_factor : float
         Factor to convert integral to magnetic field
-    fit_points :int
+    fit_points : int
         Number of point at each end to remove offset
+    to_fit : {'PU', 'field'} optional
+        If to correct an offset voltage the PU signal is fit or the field.
     
     Returns
     -------
@@ -74,9 +78,16 @@ def PUtoB(PU_signal, field_factor, fit_points):
     """
     count = np.arange(len(PU_signal))
     ends = np.concatenate([count[:fit_points], count[-fit_points:]])
-    a, b = np.polyfit(ends, PU_signal[ends], 1)
-    PU_flat = PU_signal - a*count - b
-    return np.cumsum(PU_flat*field_factor)
+    if to_fit == 'PU':
+        a, b = np.polyfit(ends, PU_signal[ends], 1)
+        PU_flat = PU_signal - a*count - b
+        return np.cumsum(PU_flat*field_factor)
+    elif to_fit == 'field':
+        field = np.cumsum(PU_signal*field_factor)
+        a, b = np.polyfit(ends, field[ends], 1)
+        return field - a*count - b
+    else:
+        raise ValueError("to_fit needs to be either 'PU' or 'field'.")
 
 
 class PulsedLockIn():
@@ -152,7 +163,6 @@ class PulsedLockIn():
         self.preamp = preamp
         # For cutting down data
         self.sfield = self.field[self.slice]
-        
 
     def lockin_Volt(self, time_const, phase_shift):
         """
@@ -177,9 +187,9 @@ class PulsedLockIn():
                 Only includes the data points listed in slice
             loc_Volt_out : 1d numpy.ndarray
                 Measurement voltage after lock in the same as
-                :param:`loc_Volt` but with the out of phase signal
+                `loc_Volt` but with the out of phase signal
             Res : 1d numpy.ndarray
-                :param:`loc_Volt` divided by current in Ohms
+                `loc_Volt` divided by current in Ohms
         """
         self.time_const = time_const
         self.phase_shift = phase_shift
@@ -189,6 +199,57 @@ class PulsedLockIn():
         self.loc_Volt_out = diglock.ham_lock_in(self.Volt, time_const,
             self.fs, self.freq, self.phase + phase_shift + 90.,
             )[self.slice]/self.preamp
+        self.Res = self.loc_Volt/self.Irms
+
+    def lockin_Volt_smooth(self, time_const, phase_shift,
+            smooth_points=None, smooth_order=2):
+        """
+        This preforms a lock in process on the measurement signal, it then
+        performs a light smoothing to remove aliasing.
+        This uses :func:gigaanalysis.diglock.ham_lock_in
+        The smoothing is done with a pass of a Savitzky-Golay filter from
+        :func:`scipy.signal.savgol_filter`.
+        
+        Parameters
+        ----------
+            time_const : float
+                Time for averaging in seconds
+            phase_shift : float
+                Phase difference between the current voltage
+                and the measurement voltage
+            smooth_points : int, optional
+                The number of points to use for the smoothing, the default
+                is twice the number of the skipped points in the final data.
+            smooth_order : int, optional
+                The order of the poly to fit for the smoothing.
+
+        Attributes
+        ----------
+            As well as the inputs being stored as attributes the following
+            are made
+            loc_Volt : 1d np.array
+                Measurement voltage after lock in
+                process corrected for preamp amplitude in Volts rms
+                Only includes the data points listed in slice
+            loc_Volt_out : 1d numpy.ndarray
+                Measurement voltage after lock in the same as
+                `loc_Volt` but with the out of phase signal
+            Res : 1d numpy.ndarray
+                `loc_Volt` divided by current in Ohms
+        """
+        if smooth_points == None:
+            smooth_points = abs(self.slice.step)*2-1
+        self.time_const = time_const
+        self.phase_shift = phase_shift
+        presmooth = diglock.ham_lock_in(self.Volt, time_const,
+            self.fs, self.freq, self.phase + phase_shift,
+            )
+        self.loc_Volt = savgol_filter(presmooth, smooth_points,
+            smooth_order,)[self.slice]/self.preamp
+        presmooth_out = diglock.ham_lock_in(self.Volt, time_const,
+            self.fs, self.freq, self.phase + phase_shift + 90.,)
+        self.loc_Volt_out = savgol_filter(presmooth_out, smooth_points,
+            smooth_order,)[self.slice]/self.preamp
         self.Res = self.loc_Volt/self.Irms
 
     def lockin_Volt_test(self, time_const, phase_shift):
@@ -228,9 +289,8 @@ class PulsedLockIn():
             self.fs, self.freq, self.phase + 90)[self.slice]
         return diglock.phase_in(v_in, v_out)
 
-
     def find_phase(self, time_const, skip_num=10,
-                   start_auto=False):
+                   start_auto=False, to_zero=True):
         """
         This produces a graph with a slider that can be used
         Args:
@@ -248,8 +308,9 @@ class PulsedLockIn():
             self.fs, self.freq, self.phase)[self.slice][::skip_num]
         v_out = diglock.ham_lock_in(self.Volt, time_const,
             self.fs, self.freq, self.phase + 90)[self.slice][::skip_num]
-        v_in -= v_in[0]
-        v_out -= v_out[0]
+        if to_zero:
+            v_in -= v_in[0]
+            v_out -= v_out[0]
         field = self.field[self.slice][::skip_num]
         # Make plotting function
         def plotting(phase=start_phase):
@@ -266,6 +327,62 @@ class PulsedLockIn():
         # Generate interactive window
         interact(plotting, phase=FloatSlider(min=0, max=360, step=1,
             value=start_phase, continuous_update=False))
+
+    def spike_lockin_Volt(self, time_const, phase_shift,
+            sdl=2, region=1001):
+        """
+        This preforms a lock in process on the measurement signal. With the
+        aim of removing spikes in the raw first.
+        This uses :func:gigaanalysis.diglock.spike_lock_in
+        
+        Parameters
+        ----------
+            time_const : float
+                Time for averaging in seconds
+            phase_shift : float
+                Phase difference between the current voltage
+                and the measurement voltage
+            sdl : float, optional
+                The number of standard deviations the data
+                to be deviate from to be considered a outlier.
+            region : int, optional
+                The number of points around the outlier
+                that are also considered bad.
+
+        Attributes
+        ----------
+            As well as the inputs being stored as attributes the following
+            are made
+            loc_Volt : 1d np.array
+                Measurement voltage after lock in
+                process corrected for preamp amplitude in Volts rms
+                Only includes the data points listed in slice
+            loc_Volt_out : 1d numpy.ndarray
+                Measurement voltage after lock in the same as
+                `loc_Volt` but with the out of phase signal
+            Res : 1d numpy.ndarray
+                `loc_Volt` divided by current in Ohms
+        """
+        self.time_const = time_const
+        self.phase_shift = phase_shift
+        self.loc_Volt = diglock.spike_lock_in(self.Volt, time_const,
+            self.fs, self.freq, self.phase + phase_shift,
+            sdl=sdl, region=region,)[self.slice]/self.preamp
+        self.loc_Volt_out = diglock.spike_lock_in(self.Volt, time_const,
+            self.fs, self.freq, self.phase + phase_shift + 90.,
+            sdl=sdl, region=region,)[self.slice]/self.preamp
+        self.Res = self.loc_Volt/self.Irms
+
+
+
+    def get_R_res(self):
+        """
+        This returns the absolute value of the signal independent of phase.
+        """
+        return Data(
+            self.sfield,
+            np.sqrt(self.loc_Volt*self.loc_Volt +
+            self.loc_Volt_out*self.loc_Volt_out)/self.Irms)
 
     def plot_Res(self, *args, axis=None, **kwargs):
         """

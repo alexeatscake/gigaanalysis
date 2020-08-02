@@ -1,5 +1,4 @@
-"""
-GigaAnalysis - Fitting
+"""GigaAnalysis - Fitting
 
 """
 
@@ -25,10 +24,10 @@ class Fit_result():
         The estimated covariance.
     results : gigaanalysis.data.Data
         The optimal values obtained from the fit, will be
-        none if full=False when performing the fit.
+        none if `full`=`False` when performing the fit.
     residuals : gigaanalysis.data.Data
         The residuals of the fit, will be none
-        if full=False when performing the fit.
+        if `full`=`False` when performing the fit.
 
     Attributes
     ----------
@@ -40,10 +39,10 @@ class Fit_result():
         The estimated covariance.
     results : gigaanalysis.data.Data
         The optimal values obtained from the fit, will be
-        none if full=False when performing the fit.
+        none if `full`=`False` when performing the fit.
     residuals : gigaanalysis.data.Data
         The residuals of the fit, will be none
-        if full=False when performing the fit.
+        if `full`=`False` when performing the fit.
 
     """
     def __init__(self, func, popt, pcov, results, residuals):
@@ -100,16 +99,16 @@ def curve_fit(data_set, func, p0=None, full=True, **kwargs):
     data_set : gigaanalysis.data.Data
         The data to perform the fit on.
     func : function
-        The model function to fit. It must take the x_values as
+        The model function to fit. It must take the x values as
         the first argument and the parameters to fit as separate remaining
         arguments.
     p0 : numpy.ndarray, optional
         Initial guess for the parameters. Is passed to
-        scipy.optimize.curve_fit included so it can be addressed
+        :func:`scipy.optimize.curve_fit` included so it can be addressed
         positionally. If `None` unity will be used for every parameter.
     full : bool, optional
-        If True fit_result will include residuals if False they will
-        not be calculated and only results included.
+        If `True`, `fit_result` will include residuals, and if `False`
+        they will not be calculated and only results included.
     kwargs:
         Keyword arguments are passed to :func:`scipy.optimize.curve_fit`.
     
@@ -132,9 +131,8 @@ def any_poly(x_data, *p_vals, as_Data=False):
     """The point of this function is to generate the values expected from a
     linear fit. It is designed to take the values obtained from
     :func:`numpy.polyfit`.
-    for a set of p_vals of length n+1  
-    ``y_data = p_vals[0]*x_data**n + p_vals[0]*x_data**(n-1) + ... 
-    p_vals[n-1]*x_data + p_vals[n]``
+    For a set of p_vals of length n+1 ``y_data = p_vals[0]*x_data**n + 
+    p_vals[0]*x_data**(n-1) + ... + p_vals[n]``
 
     Parameters
     ----------
@@ -174,6 +172,72 @@ def poly_fit(data_set, order, full=True):
         The data set to perform the fit on.
     order : int
         The order of the polynomial.
+    full : bool, optional
+        If True fit_result will include residuals if False they will
+        not be calculated and only results included.
+    
+    Returns
+    -------
+    fit_result : gigaanalysis.fit.Fit_result
+        A gigaanalysis Fit_result object containing the results the
+        fit parameters are the coefficients of the polynomial. Follows the
+        form of :func:`gigaanalysis.fit.any_poly`.
+    
+    """
+    popt, pcov = np.polyfit(data_set.x, data_set.y, order, cov=True)
+    func = any_poly
+    if full:
+        results = Data(data_set.x, func(data_set.x, *popt))
+        residuals = data_set - results
+    else:
+        results, residuals = None, None
+    return Fit_result(func, popt, pcov, results, residuals)
+
+
+def make_sin(x_data, amp, wl, phase, offset, as_Data=False):
+    """This function generates sinusoidal signals
+    The form of the equation is
+    ``amp*np.sin(x_data*np.pi*2./wl + phase*np.pi/180.) + offset``
+
+    Parameters
+    ----------
+    x_data :  numpy.ndarray
+        The values to compute the y values of.
+    amp : float
+        Amplitude of the sin wave.
+    wl : float
+        Wavelength of the sin wave units the same as `x_data`.
+    phase : float
+        Phase shift of the sin wave in deg
+    offset : float
+        Shift of the y values
+    as_Data : bool, optional
+        If False returns a :class:`numpy.ndarray` which is the default
+        behaviour. If True returns a :class:`gigaanalysis.data.Data` object
+        with the x values given and the cosponsoring y values.
+
+    Returns
+    -------
+    results : numpy.ndarray or gigaanalysis.data.Data
+        The values expected from the sinusoidal with the given parameters
+    
+    """
+    results = amp*np.sin(x_data*np.pi*2./wl + phase*np.pi/180.) + offset
+    if as_Data:
+        return ga.Data(x_data, results)
+    else:
+        return results
+
+
+def sin_fit(data_set, full=True):
+    """This function fits a polynomial of a certain order to a given
+    data set. It uses :func:`numpy.polyfit` for the fitting. The function
+    which is to produce the data is :func:`gigaanalysis.fit.any_poly`.
+
+    Parameters
+    ----------
+    data_set : gigaanalysis.data.Data
+        The data set to perform the fit on.
     full : bool, optional
         If True fit_result will include residuals if False they will
         not be calculated and only results included.

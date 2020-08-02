@@ -1,6 +1,5 @@
 
-"""
-GigaAnalysis - Data
+"""GigaAnalysis - Data Type
 
 This holds the data class and the functions that will manipulate them.
 

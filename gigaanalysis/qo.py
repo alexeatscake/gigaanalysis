@@ -1,6 +1,4 @@
-"""
-
-Giga Analysis - Quantum Oscillations
+"""Giga Analysis - Quantum Oscillations
 
 """
 

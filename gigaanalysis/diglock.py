@@ -1,5 +1,4 @@
-'''
-GigaAnalysis - Digital Lock In
+'''GigaAnalysis - Digital Lock In
 
 This program is to recreate what a lock in would do for slower measurements
 but for our high field experiments. This is based around what the program in 
@@ -40,6 +39,7 @@ def polypeak(data, fit_points=3):
     y = a*x**2 + b*x + c
     return x, y
 
+
 def find_freq(data, samp_freq, padding=1, fit_point=3, plot=False, amp=False):
     '''
     Find the dominate frequency in oscillatory data.
@@ -72,6 +72,7 @@ def find_freq(data, samp_freq, padding=1, fit_point=3, plot=False, amp=False):
         return peak_freq, peak_amp
     return peak_freq
 
+
 def butter_bandpass(lowcut, highcut, fs, order=5):
     '''
     Produces the polynomial values for a Butterworth bandpass.
@@ -90,6 +91,7 @@ def butter_bandpass(lowcut, highcut, fs, order=5):
     b, a = butter(order, [low, high], btype='band')
     return b, a
 
+
 def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
     '''
     Applies a Butterworth bandpass filter to some data.
@@ -107,6 +109,7 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
     y = filtfilt(b, a, data)
     return y
 
+
 def gen_ref(freq, fs, phase, number):
     '''
     This produces the reference signal for the digital lock in.
@@ -120,6 +123,7 @@ def gen_ref(freq, fs, phase, number):
     '''
     return np.sin(2*np.pi*freq*np.arange(0, number, 1)/fs 
                           + phase*np.pi/180)
+
 
 def find_phase(data, fs, freq):
     '''
@@ -136,6 +140,7 @@ def find_phase(data, fs, freq):
         return -np.sum(data*gen_ref(freq, fs, p, len(data)))
     return float(minimize(to_min, 180, bounds=[(0, 360)]).x)
 
+
 def round_oscillation(time_const, freq):
     '''
     Args:
@@ -145,6 +150,7 @@ def round_oscillation(time_const, freq):
         A int of the closest whole number of oscillations.
     '''
     return round(time_const*freq)
+
 
 def flat_window(time_const, fs, freq):
     '''
@@ -161,6 +167,7 @@ def flat_window(time_const, fs, freq):
     window = np.full(int(round_oscillation(time_const, freq)*fs/freq), 1.0)
     return window/np.sum(window)
 
+
 def hamming_window(time_const, fs, freq):
     '''
     Produces a window for averaging using convolve.
@@ -175,6 +182,7 @@ def hamming_window(time_const, fs, freq):
     '''
     window = hamming(round(time_const*fs/0.54))
     return window/np.sum(window)
+
 
 def ham_lock_in(signal, time_const, fs, freq, phase):
     '''
@@ -196,6 +204,7 @@ def ham_lock_in(signal, time_const, fs, freq, phase):
     lock_ref = gen_ref(freq, fs, phase, len(signal))
     return np.convolve(signal*lock_ref, window, mode='same')*np.sqrt(2)
 
+
 def flat_lock_in(signal, time_const, fs, freq, phase):
     '''
     Prefroms a lock in of the signal and avrages useing a hamming window.
@@ -213,6 +222,7 @@ def flat_lock_in(signal, time_const, fs, freq, phase):
     window = flat_window(time_const, fs, freq)
     lock_ref = gen_ref(freq, fs, phase, len(signal))
     return np.convolve(signal*lock_ref, window, mode='same')*np.sqrt(2)
+
 
 def phase_in(signal_in, signal_out, **kwargs):
     """
@@ -261,12 +271,49 @@ def phase_in(signal_in, signal_out, **kwargs):
         return max_phase
 
 
+def select_not_spikes(data, sdl=2., region=1001):
+    '''
+    Finds the spikes inside the data set and excludes the region around them.
+    It does this by looking at when the values change unusually quickly.
+    Args:
+        data (np array): The signal to examine
+        sdl (float default=2.): The number of standard deviations the data
+            to be deviate from to be considered a outlier.
+        region (int default=1001): The number of points around the outlier
+            that are also considered bad.
+    Returns:
+        A np array of boolean values where true means good values.
+    '''
+    change = np.append(np.diff(data), 0)
+    spikes = abs(change - np.mean(change)) > sdl*np.std(change)
+    good_vals = np.convolve(spikes, np.ones(region), mode='same') == 0
+    return good_vals
 
 
-
-
-
-
-
-
+def spike_lock_in(signal, time_const, fs, freq, phase, sdl=2, region=1001):
+    '''
+    Preforms a lock in of the signal and averages using a hamming window, the
+    same way as diglock.ham_lock_in. It also removes the points effected by
+    the spikes and interpolates between them using diglock.select_not_spikes.
+    Args:
+        signal: (numpy array): AC signal to lock in
+        time_const (float): Time for averaging
+        fs (float): Frequency of samples
+        freq (float): Frequency of the signal
+        phase (float): Phase of signal
+        sdl (float default=2.): The number of standard deviations the data
+            to be deviate from to be considered a outlier.
+        region (int default=1001): The number of points around the outlier
+            that are also considered bad.
+    Returns:
+        A numpy array of the signal after lock in.
+    '''
+    window = hamming_window(time_const, fs, freq)
+    lock_ref = gen_ref(freq, fs, phase, len(signal))
+    times = np.arange(len(signal))
+    good_points = select_not_spikes(signal*lock_ref, sdl, region)
+    locked_in = np.convolve((signal*lock_ref)[good_points],
+                            window, mode='same')*np.sqrt(2)
+    # step_size = int(np.ceil(len(window)/pp_window))
+    return np.interp(times, times[good_points], locked_in)
 

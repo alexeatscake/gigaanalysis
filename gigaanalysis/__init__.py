@@ -1,5 +1,4 @@
-"""
-GigaAnalysis
+"""GigaAnalysis
 
 This is made for processing sweep data from physics experiments.
 
