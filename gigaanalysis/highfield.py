@@ -147,24 +147,35 @@ class PulsedLockIn():
         self.maxB = np.argmax(self.field)
         self.peak_field = self.field[self.maxB]
         if side == 'down':
+            self.startB = self.maxB
             self.endB = self.maxB + \
                 np.where(self.field[self.maxB:]<B_min)[0][0]
-            self.slice = slice(self.endB, self.maxB, -skip_num)
+            self.slice = slice(self.endB, self.startB, -skip_num)
         elif side == 'up':
-            self.endB = np.where(self.field[:self.maxB]>B_min)[0][0]
-            self.slice = slice(self.endB, self.maxB, skip_num)
+            self.startB = np.where(self.field[:self.maxB]>B_min)[0][0]
+            self.endB = self.maxB
+            self.slice = slice(self.startB, self.endB, skip_num)
+        elif side == 'both':
+            self.startB = np.where(self.field[:self.maxB]>B_min)[0][0]
+            self.endB = self.maxB + \
+                np.where(self.field[self.maxB:]<B_min)[0][0]
+            self.slice = slice(self.startB, self.endB, skip_num)
         else:
-            raise ValueError("side must be either 'up' or 'down'.")
+            raise ValueError("side must be either 'up', 'down', or 'both'.")
         # Find frequencies and phases
         self.freq = diglock.find_freq(self.Iv, self.fs, padding=10)
         self.phase = diglock.find_phase(self.Iv, self.fs, self.freq)
         self.Irms = np.average((self.Iv*diglock.gen_ref(self.freq, self.fs,
             self.phase, len(self.Iv)))[1000:-1000])*np.sqrt(2)/R_shunt
         self.preamp = preamp
-        # For cutting down data
-        self.sfield = self.field[self.slice]
+        self.R_shunt = R_shunt
+        # Attributes to be set
+        self.time_const = None
+        self.phase_shift = 0
+        self.loc_Volt = None
+        self.loc_Volt_out = None
 
-    def lockin_Volt(self, time_const, phase_shift):
+    def lockin_Volt(self, time_const, phase_shift=None):
         """
         This preforms a lock in process on the measurement signal.
         This uses :func:gigaanalysis.diglock.ham_lock_in
@@ -184,25 +195,42 @@ class PulsedLockIn():
             loc_Volt : 1d np.array
                 Measurement voltage after lock in
                 process corrected for preamp amplitude in Volts rms
-                Only includes the data points listed in slice
             loc_Volt_out : 1d numpy.ndarray
                 Measurement voltage after lock in the same as
                 `loc_Volt` but with the out of phase signal
-            Res : 1d numpy.ndarray
-                `loc_Volt` divided by current in Ohms
         """
         self.time_const = time_const
-        self.phase_shift = phase_shift
+        if phase_shift != None:
+            self.phase_shift = phase_shift
         self.loc_Volt = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + phase_shift,
-            )[self.slice]/self.preamp
+            self.fs, self.freq, self.phase + self.phase_shift,
+            )/self.preamp
         self.loc_Volt_out = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + phase_shift + 90.,
-            )[self.slice]/self.preamp
-        self.Res = self.loc_Volt/self.Irms
+            self.fs, self.freq, self.phase + self.phase_shift + 90.,
+            )/self.preamp
 
-    def lockin_Volt_smooth(self, time_const, phase_shift,
-            smooth_points=None, smooth_order=2):
+    def lockin_current(self, time_const, phase=0,):
+        """
+        This preforms a lock in process on the measurement signal.
+        This uses :func:gigaanalysis.diglock.ham_lock_in
+        
+        Parameters
+        ----------
+            time_const : float
+                Time for averaging in seconds
+
+        Attributes
+        ----------
+            As well as the inputs being stored as attributes the following
+            are made
+            loc_I : 1d np.array
+                Current after lock in
+                process corrected for preamp amplitude in Volts rms
+        """
+        self.loc_I = diglock.ham_lock_in(self.Volt, time_const,
+            self.fs, self.freq, self.phase + phase,)/self.R_shunt
+
+    def smooth_Volts(self, smooth_time, smooth_order=2):
         """
         This preforms a lock in process on the measurement signal, it then
         performs a light smoothing to remove aliasing.
@@ -212,14 +240,8 @@ class PulsedLockIn():
         
         Parameters
         ----------
-            time_const : float
-                Time for averaging in seconds
-            phase_shift : float
-                Phase difference between the current voltage
-                and the measurement voltage
-            smooth_points : int, optional
-                The number of points to use for the smoothing, the default
-                is twice the number of the skipped points in the final data.
+            smooth_points : float
+                The time over to fit for smoothing.
             smooth_order : int, optional
                 The order of the poly to fit for the smoothing.
 
@@ -230,45 +252,33 @@ class PulsedLockIn():
             loc_Volt : 1d np.array
                 Measurement voltage after lock in
                 process corrected for preamp amplitude in Volts rms
-                Only includes the data points listed in slice
             loc_Volt_out : 1d numpy.ndarray
                 Measurement voltage after lock in the same as
                 `loc_Volt` but with the out of phase signal
-            Res : 1d numpy.ndarray
-                `loc_Volt` divided by current in Ohms
         """
-        if smooth_points == None:
-            smooth_points = abs(self.slice.step)*2-1
-        self.time_const = time_const
-        self.phase_shift = phase_shift
-        presmooth = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + phase_shift,
-            )
-        self.loc_Volt = savgol_filter(presmooth, smooth_points,
-            smooth_order,)[self.slice]/self.preamp
-        presmooth_out = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + phase_shift + 90.,)
+        smooth_points = int(np.ciel(smooth_time/self.fs/2)*2 + 1)
+        self.loc_Volt = savgol_filter(self.loc_Volt, smooth_points,
+            smooth_order,)
         self.loc_Volt_out = savgol_filter(presmooth_out, smooth_points,
-            smooth_order,)[self.slice]/self.preamp
-        self.Res = self.loc_Volt/self.Irms
+            smooth_order,)
 
-    def lockin_Volt_test(self, time_const, phase_shift):
+    def rephase(self, phase_shift, trial=False):
         """
-        This preforms a lock in process on the measurement signal and saves
-        everything as opposed to performing the slice reduction 
-        This uses diglock.ham_lock_in
-        Args:
-            time_const (float): time for averaging in seconds
-            phase_shift (float): phase difference between the current
-                voltage and the measurement voltage
-        Returns:
-            loc_Volt (1d np.array): Measurement voltage after lock in
-                process corrected for preamp amplitude in Volts rms
+        Rephases the signal to the new phase
         """
-        return diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + phase_shift)
+        phase_difference = phase_shift - self.phase_shift
+        v_in_new  = self.loc_Volt*np.cos(phase_difference*np.pi/180) + \
+            self.loc_Volt_out*np.sin(phase_difference*np.pi/180)
+        v_out_new = self.loc_Volt_out*np.cos(phase_difference*np.pi/180) - \
+            self.loc_Volt*np.sin(phase_difference*np.pi/180)
+        if trial == False:
+            self.phase_shift = phase_shift
+            self.loc_Volt = v_in_new
+            self.loc_Volt_out = v_out_new
+        else:
+            return v_in_new, v_out_new
 
-    def auto_phase(self, time_const, **kwargs):
+    def auto_phase(self, aim='change', **kwargs):
         """
         This finds the phase which makes the out of phase a flat as possible
         and also has the in phase be majority positive.
@@ -278,19 +288,19 @@ class PulsedLockIn():
         Args:
             time_const (float): The time constant to be used to average by
                 the lock in program.
+            aim : ('change', 'value')
+                Weather to minimise the change in signal or the signal total
         Returns:
             phase (float): A value between 0 and 360 which produces the
-                flattest out of phase signal.
+                best out of phase signal.
         """
         # Perform lock in to get data to fit
-        v_in = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase)[self.slice]
-        v_out = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + 90)[self.slice]
-        return diglock.phase_in(v_in, v_out)
+        v_in = self.loc_Volt_out[self.slice]
+        v_out = self.loc_Volt_out[self.slice]
+        return (self.phase_shift +
+            diglock.phase_in(v_in, v_out, aim=aim)) % 360
 
-    def find_phase(self, time_const, skip_num=10,
-                   start_auto=False, to_zero=True):
+    def find_phase(self, skip_num=10, start_auto='change', to_zero=True):
         """
         This produces a graph with a slider that can be used
         Args:
@@ -299,15 +309,20 @@ class PulsedLockIn():
             start_auto (bool): If true will use auto_phase to find the best
                 phase and start the graph at that location
         """
-        if start_auto:
-            start_phase = self.auto_phase(time_const)
+
+        if isinstance(start_auto, (np.int, np.float)):
+            start_phase = start_auto
+        elif start_auto == 'change':
+            start_phase = self.auto_phase(aim='change')
+        elif start_auto == 'value':
+            start_phase = self.auto_phase(aim='value')
         else:
-            start_phase = 0
-        # Perform lock in to get data to plot
-        v_in = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase)[self.slice][::skip_num]
-        v_out = diglock.ham_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + 90)[self.slice][::skip_num]
+            raise ValueError("start_auto must either be a value to start"
+                " or 'change' or 'value' to be passed to auto_phase.")
+        # Gets data to plot
+        v_in, v_out = self.rephase(0, trial=True)
+        v_in = v_in[self.slice][::skip_num]
+        v_out = v_out[self.slice][::skip_num]
         if to_zero:
             v_in -= v_in[0]
             v_out -= v_out[0]
@@ -318,6 +333,7 @@ class PulsedLockIn():
                 v_out*np.sin(phase*np.pi/180)
             v_out_new = v_out*np.cos(phase*np.pi/180) - \
                 v_in*np.sin(phase*np.pi/180)
+            plt.plot(field[[0, -1]], [0, 0], color='0.5')
             plt.plot(field, v_in_new, 'b', label='V In')
             plt.plot(field, v_out_new, 'r', label='V Out')
             plt.ylabel('Voltage (V)')
@@ -367,47 +383,50 @@ class PulsedLockIn():
         self.phase_shift = phase_shift
         self.loc_Volt = diglock.spike_lock_in(self.Volt, time_const,
             self.fs, self.freq, self.phase + phase_shift,
-            sdl=sdl, region=region,)[self.slice]/self.preamp
+            sdl=sdl, region=region,)/self.preamp
         self.loc_Volt_out = diglock.spike_lock_in(self.Volt, time_const,
             self.fs, self.freq, self.phase + phase_shift + 90.,
-            sdl=sdl, region=region,)[self.slice]/self.preamp
-        self.Res = self.loc_Volt/self.Irms
+            sdl=sdl, region=region,)/self.preamp
 
+    def _make_Data(self, y_values, as_Data, x_axis):
+        """
+        """
+        if as_Data:
+            if x_axis == 'field':
+                return Data(self.field[self.slice], y_values)
+            elif x_axis == 'time':
+                return Data(np.arange(len(self.field))[self.slice]/self.fs,
+                    y_values)
+            else:
+                raise ValueError("x_axis must either be 'field' or 'time'.")
+        else:
+            return y_values
 
+    def volts_in(self, as_Data=True, x_axis='field'):
+        """
+        The signal from the locked in, in phase voltage.
+        """
+        return self._make_Data(self.loc_Volt[self.slice],
+            as_Data=as_Data, x_axis=x_axis)
 
-    def get_R_res(self):
+    def volts_out(self, as_Data=True, x_axis='field'):
         """
-        This returns the absolute value of the signal independent of phase.
+        The signal from the locked in, in phase voltage.
         """
-        return Data(
-            self.sfield,
-            np.sqrt(self.loc_Volt*self.loc_Volt +
-            self.loc_Volt_out*self.loc_Volt_out)/self.Irms)
+        return self._make_Data(self.loc_Volt_out[self.slice],
+            as_Data=as_Data, x_axis=x_axis)
 
-    def plot_Res(self, *args, axis=None, **kwargs):
+    def res_in(self, as_Data=True, x_axis='field'):
         """
-        This plots the Rxx data
-        Includes all the standard arguments from matplotlib.pyplot.plot
+        The signal from the locked in, in phase voltage.
+        """
+        return self._make_Data(self.loc_Volt[self.slice]/self.Irms,
+            as_Data=as_Data, x_axis=x_axis)
 
-        Parameters
-        ----------
-        axis : matplotlib.axes.Axes, optional
-            An axis that the line is plotted on if not given
-            calls :func:`plt.plot`
+    def res_out(self, as_Data=True, x_axis='field'):
         """
-        if axis == None:
-            axis = plt
-        axis.plot(self.sfield, self.Res, *args, **kwargs)
-
-    def save_Res(self, filename, **kwargs):
+        The signal from the locked in, in phase voltage.
         """
-        Saves the resistance vs field as a csv
-        uses pandas.DataFrame.to_csv and kwargs are pass to it
-        Args:
-            filename (str): filename to save the data as
-        """
-        pd.DataFrame(np.concatenate(
-            [self.sfield[:, None], self.Res[:, None]], axis=1),
-            columns=['Field(T)', 'Resistance(Ohm)']
-            ).to_csv(filename, **kwargs)
+        return self._make_Data(self.loc_Volt_out[self.slice]/self.Irms,
+            as_Data=as_Data, x_axis=x_axis)
 

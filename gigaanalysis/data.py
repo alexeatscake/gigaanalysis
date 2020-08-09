@@ -508,6 +508,18 @@ axis.plot(self.x, self.y, *args, **kwargs)
         else:
             axis.plot(self.x, self.y, *args, **kwargs)
 
+    def to_csv(self, filename, columns=["X", "Y"], **kwargs):
+        """
+        Saves the resistance vs field as a csv
+        uses pandas.DataFrame.to_csv and kwargs are pass to it
+        Args:
+            filename (str): filename to save the data as
+            columns : [str, str]
+                The title of the two columns
+        """
+        pd.DataFrame(values, columns=columns
+            ).to_csv(filename, **kwargs)
+
 
 def sum_data(data_list):
     """

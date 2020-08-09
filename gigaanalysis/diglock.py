@@ -224,7 +224,7 @@ def flat_lock_in(signal, time_const, fs, freq, phase):
     return np.convolve(signal*lock_ref, window, mode='same')*np.sqrt(2)
 
 
-def phase_in(signal_in, signal_out, **kwargs):
+def phase_in_change(signal_in, signal_out, **kwargs):
     """
     This given an in and out of phase signal returns the phase shift to
     move the majority of the change in signal into the in phase component.
@@ -269,6 +269,69 @@ def phase_in(signal_in, signal_out, **kwargs):
         return max_phase + 180
     else:
         return max_phase
+
+
+def phase_in_value(signal_in, signal_out, **kwargs):
+    """
+    This given an in and out of phase signal returns the phase shift to
+    move the majority of the change in signal into the in phase component.
+    It also chooses the phase shift so the change is positive and between
+    0 and 360 deg.
+    Uses :func:`scipy.optimize.minimize` and kwargs are passed to it
+
+    Parameters
+    ---------
+    signal_in : 1d numpy.ndarray
+        The values containing the in phase signal
+    signal_in : 1d numpy.ndarray
+        The values containing the out of phase signal needs to be the same
+        shape as signal_in
+    kwargs:
+        Keyword arguments are passed to :func:`scipy.optimize.minimize`
+
+    Returns
+    -------
+    max_phase : float
+        The phase in degrees between 0 deg and 360 deg where the change in
+        signal in the out of phase is minimised.
+    """
+    if signal_in.shape != signal_out.shape:
+        raise(ValueError("The singal_in and singal_out arrays need to be "
+            "the same shape. They are {} and {}".format(
+                signal_in.shape, signal_out.shape)))
+    scaling = 1./np.sum(
+        np.sqrt(signal_in*signal_in + signal_out*signal_out))
+    # Produce function to minimise
+    def to_min(phase):
+        new_out = signal_out*np.cos(phase*np.pi/180) - \
+            signal_in*np.sin(phase*np.pi/180)
+        out_abs = np.abs(new_out*scaling)
+        return np.average(out_abs)
+    # Find the minimum
+    max_phase = np.asscalar(minimize(to_min, x0=0.,
+        method='Nelder-Mead', **kwargs).x) % 180
+    # Pick double value that makes signal positive
+    if np.sum(signal_in*np.cos(max_phase*np.pi/180) + \
+            signal_out*np.sin(max_phase*np.pi/180)) < 0:
+        return max_phase + 180
+    else:
+        return max_phase
+
+
+def phase_in(signal_in, signal_out, aim='change', **kwargs):
+    """
+    This passes to either phase_in_change or phase_in_value
+    """
+    if signal_in.shape != signal_out.shape:
+        raise(ValueError("The singal_in and singal_out arrays need to be "
+        "the same shape. They are {} and {}".format(
+            signal_in.shape, signal_out.shape)))
+    if aim == 'change':
+        return phase_in_change(signal_in, signal_out, **kwargs)
+    elif aim == 'value':
+        return phase_in_value(signal_in, signal_out, **kwargs)
+    else:
+        raise ValueError("aim must be either 'change' or 'value'.")
 
 
 def select_not_spikes(data, sdl=2., region=1001):
