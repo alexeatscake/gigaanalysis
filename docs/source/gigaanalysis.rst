@@ -22,6 +22,14 @@ gigaanalysis.fit
    :undoc-members:
    :show-inheritance:
 
+gigaanalysis.parse
+----------------
+
+.. automodule:: gigaanalysis.parse
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 gigaanalysis.qo
 ---------------
 

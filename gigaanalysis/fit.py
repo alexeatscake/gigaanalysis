@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit as sp_curve_fit
 
 
-
 class Fit_result():
     """This class is to hold the results of the fits on data objects.
 
