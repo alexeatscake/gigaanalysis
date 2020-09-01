@@ -546,3 +546,131 @@ Returns:
         data sets.
 """
     return sum_data(data_list)/len(data_list)
+
+
+def save_arrays(array_list, column_names, file_name, **kwargs):
+    """This saves a collection of one dimensional :class:`numpy.ndarray` 
+    stored in a list into a .csv file. It does this by passing it to a 
+    :class:`pandas.DataFrame` object and using the method `to_csv`. If the 
+    arrays are different lengths the values are padded with NaNs.
+    kwargs are passed to :meth:`pandas.DataFrame.to_csv`
+
+    Parameters
+    ----------
+    array_list : [numpy.ndarray]
+        A list of 1d numpy.ndarrays to save to the .csv file
+    columns_names : [str]
+        A list of column names for the .csv file the same length as the list 
+        of data arrays
+    file_name : str
+        The file name to save the file as
+    """
+    if not isinstance(array_list, list):
+        raise ValueError("array_list is not a list.")
+    elif not isinstance(column_names, list):
+        raise ValueError("column_names is not a list.")
+    elif len(array_list) != len(column_names):
+        raise ValueError("array_list and column_names are not "
+            "the same lenght.")
+    max_length = 0
+    for arr in array_list:
+        if not isinstance(arr, np.ndarray):
+            raise ValueError("array_list contains objects that are not "
+                "numpy arrays.")
+        elif len(arr.shape) != 1:
+            raise ValueError("array_list arrays are not 1D.")
+        elif max_length < arr.size:
+            max_length = arr.size
+    to_concat = []
+    for arr in array_list:
+        to_concat.append(np.pad(arr, (0, max_length - arr.size),
+            constant_values=np.nan)[:, None])
+    to_save = np.concatenate(to_concat, axis=1)
+    if 'index' not in kwargs.keys():
+        kwargs['index'] = False
+    pd.DataFrame(to_save, columns=column_names).to_csv(file_name, **kwargs)
+
+
+def save_data(data_list, data_names, file_name, 
+    x_name='X', y_name='Y', name_space='_', **kwargs):
+    """This saves a list of data objects in to a .csv file. This works by 
+    passing to :func:`save_arrays` and subsequently to 
+    :meth:`pandas.DataFrame.to_csv`. kwargs are passed to 
+    :meth:`pandas.DataFrame.to_csv`
+
+    Parameters
+    ----------
+    data_list : [gigaanalysis.data.Data]
+        A list of Data objects to be saved to a .csv file
+    data_names : [str]
+        A list the same length as the data list of names of each of the data 
+        objects. These will make the first half of the column name in the 
+        .csv file.
+    file_name : str
+        The name the file will be saved as
+    x_name : str, optional
+        The string to be append to the data name to indicate the x column in 
+        the file. Default is 'X'
+    y_name : str, optional
+        The string to be append to the data name to indicate the y column in 
+        the file. Default is 'Y'
+    name_space : str optional
+        The string that separates the data_name and the x or y column name 
+        in the column headers in the .csv file. The default is '_'.
+    """
+    if not isinstance(data_list, list):
+        raise ValueError("data_list is not a list.")
+    elif not isinstance(data_names, list):
+        raise ValueError("data_names is not a list.")
+    elif len(data_list) != len(data_names):
+        raise ValueError("data_list and data_names are not "
+            "the same lenght.")
+    array_list = []
+    for dat in data_list:
+        if not isinstance(dat, Data):
+            raise ValueError("data_list contains objects that are not "
+                "Data objects.")
+        array_list.append(dat.x)
+        array_list.append(dat.y)
+    column_names = []
+    for name in data_names:
+        column_names.append(name + name_space + x_name)
+        column_names.append(name + name_space + y_name)
+    save_arrays(array_list, column_names, file_name, **kwargs)
+
+
+def save_dict(data_dict, file_name,
+    x_name='X', y_name='Y', name_space='_', **kwargs):
+    """This saves a dictionary of data objects in to a .csv file. This works 
+    by passing to :func:`save_data` and subsequently to 
+    :meth:`pandas.DataFrame.to_csv`. The names of the data objects are taken 
+    from  the keys of the data_dict. kwargs are passed to 
+    :meth:`pandas.DataFrame.to_csv`
+
+    Parameters
+    ----------
+    data_list : [gigaanalysis.data.Data]
+        A dictionary of Data objects to be saved to a .csv file. The keys of 
+        the dictionary will be used as the data names when passed to 
+        :func:`save_data`.
+    file_name : str
+        The name the file will be saved as
+    x_name : str, optional
+        The string to be append to the data name to indicate the x column in 
+        the file. Default is 'X'
+    y_name : str, optional
+        The string to be append to the data name to indicate the y column in 
+        the file. Default is 'Y'
+    name_space : str, optional
+        The string that separates the data_name and the x or y column name 
+        in the column headers in the .csv file. The default is '_'.
+    """
+    if not isinstance(data_dict, dict):
+        raise ValueError("data_dict is not a dictionary.")
+    for dat in data_dict.values():
+        if not isinstance(dat, Data):
+            raise ValueError("data_dict contains values which are not "
+                "Data objects.")
+    save_data(list(data_dict.values()), list(data_dict.keys()), file_name,
+        x_name=x_name, y_name=y_name, name_space=name_space, **kwargs)
+
