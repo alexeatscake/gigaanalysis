@@ -614,7 +614,7 @@ def save_data(data_list, data_names, file_name,
     y_name : str, optional
         The string to be append to the data name to indicate the y column in 
         the file. Default is 'Y'
-    name_space : str optional
+    name_space : str, optional
         The string that separates the data_name and the x or y column name 
         in the column headers in the .csv file. The default is '_'.
     """

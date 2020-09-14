@@ -30,6 +30,14 @@ gigaanalysis.parse
    :undoc-members:
    :show-inheritance:
 
+gigaanalysis.magnetism
+----------------------
+
+.. automodule:: gigaanalysis.magnetism
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 gigaanalysis.qo
 ---------------
 
@@ -50,6 +58,14 @@ gigaanalysis.highfield
 ----------------------
 
 .. automodule:: gigaanalysis.highfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+gigaanalysis.const
+----------------------
+
+.. automodule:: gigaanalysis.const
    :members:
    :undoc-members:
    :show-inheritance:
