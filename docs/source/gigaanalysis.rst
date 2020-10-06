@@ -38,6 +38,14 @@ gigaanalysis.magnetism
    :undoc-members:
    :show-inheritance:
 
+gigaanalysis.heatc
+----------------------
+
+.. automodule:: gigaanalysis.heatc
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 gigaanalysis.qo
 ---------------
 

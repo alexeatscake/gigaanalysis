@@ -12,8 +12,9 @@ import matplotlib.pyplot as plt
 
 def brillouin_function(fields, n_ion, g, j, temp, as_Data=False):
     """The `Brillouin function
-    <https://en.wikipedia.org/wiki/Brillouin_and_Langevin_functions>`_ is 
-    the function which describes the magnetisation of an ideal paramagnet 
+    <https://en.wikipedia.org/wiki/Brillouin_and_Langevin_functions>`_ 
+
+    This function which describes the magnetisation of an ideal paramagnet 
     composed of ions with a certain spin J.
 
     Parameters
@@ -36,7 +37,7 @@ def brillouin_function(fields, n_ion, g, j, temp, as_Data=False):
 
     Returns
     -------
-    Magnetisation : float
+    Magnetisation : numpy.ndarray, gigaanalysis.data.Data
         The magnetisation produced in units of J/T.
     """
     x = np.array(g*const.muB()*fields/temp/const.kb())
@@ -49,10 +50,12 @@ def brillouin_function(fields, n_ion, g, j, temp, as_Data=False):
     else:
         return n_ion*g*const.muB()*j*bj
 
+
 def langevin_function(fields, n_ion, g, temp, as_Data=False):
     """The `Langevin function
-    <https://en.wikipedia.org/wiki/Brillouin_and_Langevin_functions>`_ is 
-    the classical limit of the Brillouin function which describes the 
+    <https://en.wikipedia.org/wiki/Brillouin_and_Langevin_functions>`_
+
+    This is the classical limit of the Brillouin function which describes the 
     magnetisation of an ideal paramagnet.
     
     Parameters
@@ -72,7 +75,7 @@ def langevin_function(fields, n_ion, g, temp, as_Data=False):
 
     Returns
     -------
-    Magnetisation : float
+    Magnetisation : numpy.ndarray, gigaanalysis.data.Data
         The magnetisation produced in units of J/T
     """
     x = np.array(g*const.muB()*fields/temp/const.kb())
