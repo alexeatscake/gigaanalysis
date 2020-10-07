@@ -14,74 +14,100 @@ from scipy.signal import savgol_filter, get_window, find_peaks
 
 class Data():
     """
-The Data Class
+    The Data Class
 
-Data object holds the data in the measurements. It works as a simple
-wrapper of a two column numpy array. The point is that operations apply
-to the y values and interpretation happens to compare the cosponsoring
-data points.
+    Data object holds the data in the measurements. It works as a simple
+    wrapper of a two column numpy array (:class:`numpy.ndarray`). The data 
+    stored in the object is meant to be interpreted as x is a independent 
+    variable and y is dependant variable.
 
-The initialisation is documented in the __init__ method.
 
-Attributes:
-    values (np array): Two column numpy array with the x and y data in
-    x (np array): The x data in a 1D numpy array
-    y (np array): The y data in a 1D numpy array
-    both (two np arrays): The x data then the y data in a tuple
+    Parameters
+    ----------
+    values : numpy.ndarray 
+        A two column numpy array with the x data in the first column and 
+        the y data in the second. If a second no array is given then the 
+        first corresponds to the x data.
+    split_y : numpy.ndarray, optional
+        A 1D numpy array containing the y data. If None all the data 
+        should be contained in first array.
+    strip_sort : bool or {'strip', 'sort'}, optional
+        If true the data points with NaN are removed using 
+        :func:`numpy.isfinite` and the data is sorted by the x values.
+        If 'strip' is given NaNs are removed but the data isn't sorted.
+        If 'sort' is given the data is sorted but NaNs are left in.
+        Default is False so the data isn't changed.
+    interp_full : float, optional
+        This interpolates the data to give an even spacing using the 
+        inbuilt method :meth:`to_even`. The default is None and the 
+        interpolation isn't done.
 
-"""
+    Attributes
+    ----------
+    values : numpy.ndarray
+        Two column numpy array with the x and y data in.
+    x : numpy.ndarray
+        x data in a 1D numpy array.
+    y : numpy.ndarray
+        The y data in a 1D numpy array.
+    both : (numpy.ndarray, numpy.ndarray)
+        A two value tuple with the :attr:`x` and :attr:`y` in.
+
+    """
     def __init__(self, values, split_y=None, strip_sort=False,
-                 interp_full=0.):
-        """
-The __init__ method to produce a incidence of the Data class
-Args:
-    values (np array): A two column numpy array with the x data in
-        the first column and the y data in the second. If a second 
-        no array is given then the first corresponds to the x data.
-    split_y (np array default:None): A 1D numpy array containing the
-        y data. If default all the data should be contained in
-        first array.
-"""
+                 interp_full=None):
         if type(values) in [pd.core.frame.DataFrame,
                                pd.core.series.Series]:
             values = values.values
 
         if split_y is not None:
-            if type(split_y) in [pd.core.frame.DataFrame,
-                                 pd.core.series.Series]:
+            if isinstance(split_y,
+                [pd.core.frame.DataFrame, pd.core.series.Series]):
                 split_y = split_y.values
-            elif type(values) is not np.ndarray:
-                raise ValueError(
-                    "If x and y data are split both need to " + \
-                    "be a 1D numpy array.\n" +\
+            elif not isinstance(values, np.ndarray):
+                raise TypeError(
+                    "If x and y data are split both need to "
+                    "be a 1D numpy array.\n"
                     "x is not a numpy array.")
-            elif type(split_y) is not np.ndarray:
-                raise ValueError(
-                    "If x and y data are split both need to " + \
-                    "be a 1D numpy array.\n" +\
+            elif not isinstance(split_y, np.ndarray):
+                raise TypeError(
+                    "If x and y data are split both need to "
+                    "be a 1D numpy array.\n"
                     "y is not a numpy array.")
-            elif values.ndim != 1 or split_y.ndim != 1:
+            elif values.ndim != 1:
                 raise ValueError(
-                    "If x and y data are split both need to " + \
-                    "be a 1D numpy array.\n" +\
-                    "x or y is not 1D.")
+                    "If x and y data are split both need to "
+                    "be a 1D numpy array.\n"
+                    "x is not 1D.")
+            elif split_y.ndim != 1:
+                raise ValueError(
+                    "If x and y data are split both need to "
+                    "be a 1D numpy array.\n"
+                    "y is not 1D.")
             elif values.size != split_y.size:
                 raise ValueError(
-                    "If x and y data are split both need to " + \
+                    "If x and y data are split both need to "
                     "be the same size.")
-            values = np.concatenate([values[:, None],
-                                     split_y[:, None]], axis=1)
+            values = np.concatenate(
+                [values[:, None], split_y[:, None]], axis=1)
 
         if type(values) is not np.ndarray:
-            raise TypeError('values is not a numpy array. \n' +\
-                            'Needs to be a two column numpy array.')
+            raise TypeError(
+                'values is not a numpy array. \n'
+                'Needs to be a two column numpy array.')
         elif len(values.shape) != 2 or values.shape[1] != 2:
-            raise ValueError('values dose not have two columns. \n' +\
-                            'Needs to be a two column numpy array.')
+            raise ValueError(
+                'values dose not have two columns. \n'
+                'Needs to be a two column numpy array.')
 
         if strip_sort:
-            values = values[~np.isnan(values).any(axis=1)]
-            values = values[np.argsort(values[:, 0]), :]
+            if strip_sort == 'strip':
+                values = values[np.isfinite(values).any(axis=1)]
+            elif strip_sort == 'sort':
+                values = values[np.argsort(values[:, 0]), :]
+            else:
+                values = values[np.isfinite(values).any(axis=1)]
+                values = values[np.argsort(values[:, 0]), :]
 
 
         self.values = values.astype(float)   # All the data
@@ -89,7 +115,7 @@ Args:
         self.y = values[:, 1]  # The y data
         self.both = values[:, 0], values[:, 1]  # A tuple of the data
 
-        if interp_full != 0.:
+        if interp_full:
             self.to_even(interp_full)
 
 
@@ -303,7 +329,32 @@ The Data class is only equal to other data classes with the same data.
 The iteration happens on the values, like if was numpy array.
 """
         return iter(self.values)
-    
+
+    def min_x(self):
+        """
+This provides the lowest value of x
+Returns:
+    A float of the minimum x value
+"""
+        return np.min(self.x)
+
+    def max_x(self):
+        """
+This provides the lowest value of x
+Returns:
+    A float of the minimum x value
+"""
+        return np.max(self.x)
+
+    def spacing_x(self):
+        """
+Provides the average separation of the x values
+(max_x - min_x)/num_points 
+Returns:
+    A float of the average spacing in x
+"""
+        return (self.max_x() - self.min_x())/len(self)    
+
     def y_from_x(self, x_val):
         """
 This function gives the y value for a certain x value or
@@ -334,6 +385,22 @@ Returns:
         return Data(self.values[
                     np.searchsorted(self.x, x_min, side='left'):
                     np.searchsorted(self.x, x_max, side='right'), :])
+
+    def strip_nan(self):
+        """
+This removes any row which has a nan value in.
+Returns:
+    Data class without any nan in.
+"""
+        return Data(self.values[np.isfinite(self.values).any(axis=1)])
+
+    def sort(self):
+        """
+This sorts the data set in x and returns the new array.
+Returns:
+    A Data class with the sorted data.
+"""
+        return Data(self.values[np.argsort(self.x), :])
 
     def interp_range(self, min_x, max_x, step_size, **kwargs):
         '''
@@ -435,47 +502,6 @@ Args:
         self.y = y_vals
         self.both = x_vals, y_vals
 
-    def sort(self):
-        """
-This sorts the data set in x and returns the new array.
-Returns:
-    A Data class with the sorted data.
-"""
-        return Data(self.values[np.argsort(self.x), :])
-
-    def strip_nan(self):
-        """
-This removes any row which has a nan value in.
-Returns:
-    Data class without any nan in.
-"""
-        return Data(self.values[~np.isnan(self.values).any(axis=1)])
-
-    def min_x(self):
-        """
-This provides the lowest value of x
-Returns:
-    A float of the minimum x value
-"""
-        return np.min(self.x)
-
-    def max_x(self):
-        """
-This provides the lowest value of x
-Returns:
-    A float of the minimum x value
-"""
-        return np.max(self.x)
-
-    def spacing_x(self):
-        """
-Provides the average separation of the x values
-(max_x - min_x)/num_points 
-Returns:
-    A float of the average spacing in x
-"""
-        return (self.max_x() - self.min_x())/len(self)
-
     def apply_x(self, function):
         """
 This takes a function and applies it to the x values.
@@ -566,9 +592,9 @@ def save_arrays(array_list, column_names, file_name, **kwargs):
         The file name to save the file as
     """
     if not isinstance(array_list, list):
-        raise ValueError("array_list is not a list.")
+        raise TypeError("array_list is not a list.")
     elif not isinstance(column_names, list):
-        raise ValueError("column_names is not a list.")
+        raise TypeError("column_names is not a list.")
     elif len(array_list) != len(column_names):
         raise ValueError("array_list and column_names are not "
             "the same lenght.")
@@ -593,8 +619,9 @@ def save_arrays(array_list, column_names, file_name, **kwargs):
 
 def save_data(data_list, data_names, file_name, 
     x_name='X', y_name='Y', name_space='_', **kwargs):
-    """This saves a list of data objects in to a .csv file. This works by 
-    passing to :func:`save_arrays` and subsequently to 
+    """Saves a list of data objects in to a .csv file.
+
+    This works by passing to :func:`save_arrays` and subsequently to 
     :meth:`pandas.DataFrame.to_csv`. kwargs are passed to 
     :meth:`pandas.DataFrame.to_csv`
 
@@ -619,9 +646,9 @@ def save_data(data_list, data_names, file_name,
         in the column headers in the .csv file. The default is '_'.
     """
     if not isinstance(data_list, list):
-        raise ValueError("data_list is not a list.")
+        raise TypeError("data_list is not a list.")
     elif not isinstance(data_names, list):
-        raise ValueError("data_names is not a list.")
+        raise TypeError("data_names is not a list.")
     elif len(data_list) != len(data_names):
         raise ValueError("data_list and data_names are not "
             "the same lenght.")
@@ -641,8 +668,9 @@ def save_data(data_list, data_names, file_name,
 
 def save_dict(data_dict, file_name,
     x_name='X', y_name='Y', name_space='_', **kwargs):
-    """This saves a dictionary of data objects in to a .csv file. This works 
-    by passing to :func:`save_data` and subsequently to 
+    """Saves a dictionary of data objects in to a .csv file.
+
+    This works by passing to :func:`save_data` and subsequently to 
     :meth:`pandas.DataFrame.to_csv`. The names of the data objects are taken 
     from  the keys of the data_dict. kwargs are passed to 
     :meth:`pandas.DataFrame.to_csv`
@@ -666,11 +694,47 @@ def save_dict(data_dict, file_name,
         in the column headers in the .csv file. The default is '_'.
     """
     if not isinstance(data_dict, dict):
-        raise ValueError("data_dict is not a dictionary.")
+        raise TypeError("data_dict is not a dictionary.")
     for dat in data_dict.values():
         if not isinstance(dat, Data):
             raise ValueError("data_dict contains values which are not "
                 "Data objects.")
     save_data(list(data_dict.values()), list(data_dict.keys()), file_name,
         x_name=x_name, y_name=y_name, name_space=name_space, **kwargs)
+
+
+def gen_rand(n, func=None, seed=None):
+    """Produces Data object with random values.
+
+    This uses :meth:`numpy.random.Generator.random` to produce a
+    :class:`Data` object. The numbers in both x and y values are continually 
+    increasing in steps between 0 and 1. A function can be applied to the y 
+    values.
+
+    Parameters
+    ----------
+    n : int
+        Number of data point to have in the object
+    func : function
+        A function with one parameter to transform the y values
+    seed : float
+        Seed to be passed to :func:`numpy.random.default_rng`
+
+    Returns
+    -------
+    data : :class:`Data`
+        The generated data object. 
+    """
+    if not isinstance(n, (int, np.int_)):
+        raise TypeError("n needs to be an int")
+    elif n < 1:
+        raise ValueError("n need to be a positive integer")
+    if not func:
+        return Data(
+            np.cumsum(np.random.default_rng(seed).random((n, 2)),
+                axis=0))
+    else:
+        return Data(
+            np.cumsum(np.random.default_rng(seed).random((n, 2)),
+                axis=0)).apply_y(func)
 
