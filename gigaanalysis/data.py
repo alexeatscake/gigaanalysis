@@ -11,6 +11,28 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter, get_window, find_peaks
 
+def _pick_float_dtype(to_check):
+    """Return np.complex128 for complex dtypes, np.float64 otherwise.
+    Adapted from scipy.interpolate"""
+    if isinstance(to_check, np.ndarray):
+        dtype = to_check.dtype
+    else:
+        dtype = type(to_check)
+    if np.issubdtype(dtype, np.complexfloating):
+        return np.complex_
+    else:
+        return np.float_
+
+
+def _as_float_array(x):
+    """Convert the input into a C contiguous float array.
+    Adapted from scipy.interpolate
+    NB: Upcasts half- and single-precision floats to double precision.
+    """
+    x = np.ascontiguousarray(x)
+    x = x.astype(_pick_float_dtype(x), copy=False)
+    return x
+
 
 class Data():
     """
@@ -53,52 +75,49 @@ class Data():
     both : (numpy.ndarray, numpy.ndarray)
         A two value tuple with the :attr:`x` and :attr:`y` in.
 
+    Notes
+    -----
+    Mathematical operations applied to the Data class just effects 
+    the :attr:`y` values, the :attr:`x` values stay the same. To 
+    act two :class:`Data` objects together the :attr:`x` values need to 
+    agree. :class:`Data` objects also be mathematically acted to 
+    array_like objects (:func:`numpy.asarray`) of length 1 or equal to the 
+    length of the Data.
+
     """
     def __init__(self, values, split_y=None, strip_sort=False,
                  interp_full=None):
-        if type(values) in [pd.core.frame.DataFrame,
-                               pd.core.series.Series]:
-            values = values.values
+        if isinstance(values, Data):
+            values = values.values  # If you pass a Data object to the class
+
+        values = np.asarray(values)
 
         if split_y is not None:
-            if isinstance(split_y,
-                [pd.core.frame.DataFrame, pd.core.series.Series]):
-                split_y = split_y.values
-            elif not isinstance(values, np.ndarray):
-                raise TypeError(
-                    "If x and y data are split both need to "
-                    "be a 1D numpy array.\n"
-                    "x is not a numpy array.")
-            elif not isinstance(split_y, np.ndarray):
-                raise TypeError(
-                    "If x and y data are split both need to "
-                    "be a 1D numpy array.\n"
-                    "y is not a numpy array.")
-            elif values.ndim != 1:
+            split_y = np.asarray(split_y)
+            if values.ndim != 1:
                 raise ValueError(
-                    "If x and y data are split both need to "
-                    "be a 1D numpy array.\n"
-                    "x is not 1D.")
+                    f"If x and y data are split both need to be a "
+                    f"1D numpy array. values has shape {values.shape}")
             elif split_y.ndim != 1:
                 raise ValueError(
-                    "If x and y data are split both need to "
-                    "be a 1D numpy array.\n"
-                    "y is not 1D.")
+                    f"If x and y data are split both need to be a "
+                    f"1D numpy array. split_y has shape {split_y.shape}")
             elif values.size != split_y.size:
                 raise ValueError(
-                    "If x and y data are split both need to "
-                    "be the same size.")
+                    f"If x and y data are split both need to be the same "
+                    f"size. values has size {values.size} and split_y has "
+                    f"size {split_y.szie}")
             values = np.concatenate(
                 [values[:, None], split_y[:, None]], axis=1)
 
-        if type(values) is not np.ndarray:
-            raise TypeError(
-                'values is not a numpy array. \n'
-                'Needs to be a two column numpy array.')
-        elif len(values.shape) != 2 or values.shape[1] != 2:
+        if values.ndim != 2:
             raise ValueError(
-                'values dose not have two columns. \n'
-                'Needs to be a two column numpy array.')
+                f"values needs to be a two column numpy array."
+                f"values has the shape {values.shape}")
+        elif values.shape[1] != 2:
+            raise ValueError(
+                f"values needs to be a two column numpy array."
+                f"values has the shape {values.shape}")
 
         if strip_sort:
             if strip_sort == 'strip':
@@ -110,10 +129,10 @@ class Data():
                 values = values[np.argsort(values[:, 0]), :]
 
 
-        self.values = values.astype(float)   # All the data
-        self.x = values[:, 0]  # The x data
-        self.y = values[:, 1]  # The y data
-        self.both = values[:, 0], values[:, 1]  # A tuple of the data
+        self.values = _as_float_array(values)   # All the data
+        self.x = self.values[:, 0]  # The x data
+        self.y = self.values[:, 1]  # The y data
+        self.both = self.x, self.y  # Tuple of the data
 
         if interp_full:
             self.to_even(interp_full)
@@ -123,10 +142,7 @@ class Data():
         return np.array2string(self.values)
 
     def __repr__(self):
-        return 'GA Data object:\n{}'.format(self.values)
-
-    def _repr_html_(self):
-        return 'GA Data object:\n{}'.format(self.values)
+        return f"GA Data object:\n {str(self.values)[1:-1]}"
 
     def __dir__(self):
         return ['values', 'x', 'y', 'both',
@@ -137,222 +153,317 @@ class Data():
     def __len__(self):
         return self.x.size
 
-    def __mul__(self, other):
-        """
-The Data class can be multiplied and this just effects the y values,
-the x values stay the same.
-This can be multiplied to a float, int, numpy array with 1 value,
-or a numpy array with same length, or a other Data object
-with the same length.
-"""
-        if type(other) in [float, int, np.float_, np.int_]:
-            return Data(self.x, self.y*other)
-        elif type(other) is np.ndarray:
-            if other.size == 1:
-                return Data(self.x, self.y*float(other))
-            elif self.x.shape == other.shape:
-                return(Data(self.x, self.y*other))
-            else:
-                raise ValueError('Numpy array to multiply to data '\
-                                'is wrong shape.')
-        elif type(other) == type(self):
-            if np.array_equal(self.x, other.x):
-                return(Data(self.x, self.y*other.y))
-            else:
-                raise ValueError('The two Data class need to have the same '\
-                                    'x values to be multiplied.')
+    def __bool__(self):
+        if self.values.size == 0:
+            return False
         else:
-            raise TypeError('Cannot multiple Data class with this type')
+            return True
 
-    __rmul__ = __mul__
+    def __maths_check(self, other, operation,):
+        """This performs the error checking on the standard operators
+
+        Parameters
+        ----------
+        other : :class:`Data` or array_like
+            The feature that the data object maths acts on.
+        operation : str
+            The name of the operation being applied.
+
+        Returns
+        -------
+            Array like object to calculate with
+        """
+        if isinstance(other, Data):
+            if np.array_equal(self.x, other.x):
+                return other.y
+            else:
+                raise ValueError(
+                    f"The two Data classes do not have the same x "
+                    f"values, so cannot be {operation}")
+        try:
+            other = np.asarray(other, dtype=_pick_float_dtype(other))
+        except:
+            raise TypeError(
+                f"Data cannot be {operation} with object of "
+                f"type {type(other)}.")
+        if other.size == 1:
+            return other
+        elif other.ndim != 1:
+            raise ValueError(
+                f"Array to {operation} Data object with is of the wrong "
+                f"dimension. Its shape is {other.shape}")
+        elif other.size != self.x.size:
+            raise ValueError(
+                f"Array to {operation} Data object with is of the wrong "
+                f"length. Its length is {other.size} while the Data "
+                f"is {self.x.size}")
+        else:
+            return other
+
+    def __mul__(self, other):
+        """Multiplication of the y values. """
+        other = self.__maths_check(other, "multiplied")
+        return Data(self.x, self.y*other)
+     
+    def __rmul__(self, other):
+        other = self.__maths_check(other, "multiplied")
+        return Data(self.x, other*self.y)
 
     def __truediv__(self, other):
-        """
-The Data class can be divided and this just effects the y values,
-the x values stay the same.
-This can be divided to a float, int, numpy array with 1 value,
-or a numpy array with same length, or a other Data object
-with the same length.
-"""
-        if type(other) in [float, int, np.float_, np.int_]:
-            return Data(self.x, self.y/other)
-        elif type(other) is np.ndarray:
-            if other.size == 1:
-                return Data(self.x, self.y/float(other))
-            elif self.x.shape == other.shape:
-                return(Data(self.x, self.y/other))
-            else:
-                raise ValueError('Numpy array to divide to data '\
-                                'is wrong shape.')
-        elif type(other) == type(self):    
-            if np.array_equal(self.x, other.x):
-                return(Data(self.x, self.y/other.y))
-            else:
-                raise ValueError('The two Data class need to have the same '\
-                                    'x values to be divided.')
-        else:
-            raise TypeError('Cannot divide Data class with this type')
+        """Division of the y values."""
+        other = self.__maths_check(other, "divided")
+        return Data(self.x, self.y/other)
 
     def __rtruediv__(self, other):
-        """
-The Data class can be divided and this just effects the y values,
-the x values stay the same.
-This can be divided to a float, int, numpy array with 1 value,
-or a numpy array with same length, or a other Data object
-with the same length.
-"""
-        if type(other) in [float, int, np.float_, np.int_]:
-            return Data(self.x, other/self.y)
-        elif type(other) is np.ndarray:
-            if other.size == 1:
-                return Data(self.x, float(other)/self.y)
-            elif self.x.shape == other.shape:
-                return(Data(self.x, other/self.y))
-            else:
-                raise ValueError('Numpy array to divide to data '\
-                                'is wrong shape.')
-        elif type(other) == type(self):  
-            if np.array_equal(self.x, other.x):
-                return(Data(self.x, other.y/self.y))
-            else:
-                raise TypeError('The two Data class need to have the same '\
-                                    'x values to be divided.')
-        else:
-            raise ValueError('Cannot divide Data class with this type')
+        other = self.__maths_check(other, "divide by")
+        return Data(self.x, other/self.y)
 
     def __add__(self, other):
-        """
-The Data class can be added and this just effects the y values, the
-x values stay the same.
-This can be added to a float, int, numpy array with 1 value,
-or a numpy array with same length, or a other Data object
-with the same length.
-"""
-        if type(other) in [float, int, np.float_, np.int_]:
-            return(Data(self.x, self.y + other))
-        elif type(other) is np.ndarray:
-            if other.size == 1:
-                return(Data(self.x, self.y + other))
-            elif self.x.shape == other.shape:
-                return(Data(self.x, self.y + other))
-            else:
-                raise ValueError('Numpy array to add to data '\
-                                'is wrong shape.')
-        elif type(other) == type(self):   
-            if np.array_equal(self.x, other.x):
-                return(Data(self.x, self.y + other.y))
-            else:
-                raise ValueError('The two Data class need to have the same '\
-                                    'x values to be added.')
-        else:
-            raise TypeError('Cannot add Data class with this type')
+        """Addition of the y values."""
+        other = self.__maths_check(other, "added")
+        return Data(self.x, self.y + other)
 
-    __radd__ = __add__
+    def __radd__(self, other):
+        other = self.__maths_check(other, "added")
+        return Data(self.x, other + self.y)
 
     def __sub__(self, other):
-        """
-The Data class can be subtracted and this just effects the y values,
-the x values stay the same.
-This can be subtracted to a float, int, numpy array with 1 value,
-or a numpy array with same length, or a other Data object
-with the same length.
-"""
-        if type(other) in [float, int, np.float_, np.int_]:
-            return(Data(self.x, self.y - other))
-        elif type(other) is np.ndarray:
-            if other.size == 1:
-                return(Data(self.x, self.y - other))
-            elif self.x.shape == other.shape:
-                return(Data(self.x, self.y - other))
-            else:
-                raise ValueError('Numpy array to subtract to data '\
-                                'is wrong shape.')        
-        elif type(other) == type(self):    
-            if np.array_equal(self.x, other.x):
-                return(Data(self.x, self.y - other.y))
-            else:
-                raise ValueError('The two Data class need to have the same '\
-                                    ' x values to be subtracted.')
-        else:
-            raise ValueError('Cannot subtract Data class with this type')
+        """Subtraction of the y values."""
+        other = self.__maths_check(other, "subtracted")
+        return Data(self.x, self.y - other)
 
     def __rsub__(self, other):
-        """
-The Data class can be subtracted and this just effects the y values,
-the x values stay the same.
-This can be subtracted to a float, int, numpy array with 1 value,
-or a numpy array with same length, or a other Data object
-with the same length.
-"""
-        if type(other) in [float, int, np.float_, np.int_]:
-            return(Data(self.x, other - self.y))
-        elif type(other) is np.ndarray:
-            if other.size == 1:
-                return(Data(self.x, other - self.y))
-            elif self.x.shape == other.shape:
-                return(Data(self.x, other - self.y))
-            else:
-                raise ValueError('Numpy array to subtract to data '\
-                                'is wrong shape.')
-        elif type(other) == type(self):   
-            if np.array_equal(self.x, other.x):
-                return(Data(self.x, other.y - self.y))
-            else:
-                raise ValueError('The two Data class need to have the same '\
-                                    'x values to be subtracted.')
-        else:
-            raise TypeError('Cannot subtract Data class with this type')
+        other = self.__maths_check(other, "subtracted")
+        return Data(self.x, other - self.y)
+
+    def __mod__(self, other):
+        """Performs the modulus with the y values."""
+        other = self.__maths_check(other, "divided mod")
+        return Data(self.x, self.y % other)
+
+    def __rmod__(self, other):
+        other = self.__maths_check(other, "divided mod")
+        return Data(self.x, other % self.y)
+
+    def __floordiv__(self, other):
+        """Floor division on the y values."""
+        other = self.__maths_check(other, "floor division")
+        return Data(self.x, self.y // other)
+
+    def __rfloordiv__(self, other):
+        other = self.__maths_check(other, "floor division")
+        return Data(self.x, other // self.y)
+
+    def __pow__(self, other):
+        """Takes the power of the y values."""
+        other  = self.__maths_check(other, "exponentiated")
+        return Data(self.x, self.y ** other)
+
+    def __rpow__(self, other):
+        other = self.__maths_check(other, "exponentiated")
+        return Data(self.x, other ** self.y)
 
     def __abs__(self):
+        """Calculates the absolute value of the y values.
         """
-The abs function takes the absolute value of the y values.
-"""
         return Data(self.x, abs(self.y))
 
-    def __pow__(self, power):
-        """
-Takes the power of the y values and leaves the x-values unchanged.
-"""
-        return Data(self.x, pow(self.y, power))
+    def __neg__(self):
+        """Negates the y values"""
+        return Data(self.x, neg(self.y))
+
+    def __pos__(self):
+        """Performs a unity operation on y values"""
+        return Data(self.x, pos(self.y))
 
     def __eq__(self, other):
+        """Data class is only equal to other Data classes with the same data.
         """
-The Data class is only equal to other data classes with the same data.
-"""
         if type(other) != type(self):
             return False
         else:
             return np.array_equal(self.values, other.values)
 
     def __iter__(self):
+        """The iteration happens on the values, like if was numpy array.
         """
-The iteration happens on the values, like if was numpy array.
-"""
         return iter(self.values)
 
-    def min_x(self):
+    def __index_check(self, k):
+        """Check an index given if it is correct type and size.
+        
+        Raises errors if it is the wrong type or shape. Also returns a bool
+        which is true if only one item is called.
+
+        Parameters
+        ----------
+        k : slice or can be passed to :func:slice
+            A object obtained from index calls
+
+        Returns
+        -------
+        individual : bool
+            Is the index call only for one item?
         """
-This provides the lowest value of x
-Returns:
-    A float of the minimum x value
-"""
+        if isinstance(k, tuple):
+            raise IndexError(
+                "Data object only accepts one index")
+        elif isinstance(k, slice):
+            return False
+        try:
+            k = np.asarray(k)
+        except:
+            raise IndexError(
+                "Data cannot index with this type.")
+        if k.size == 1:
+            return True
+        elif k.ndim != 1:
+            raise IndexError(
+                "Data objec can only Index is one dimension.")
+        elif k.size != self.x.size:
+            raise IndexError(
+                f"Index given was wrong length. The length of index was "
+                f"{k.size} and the Data is length {self.x.size}")
+        else:
+            return False
+
+
+    def __getitem__(self, k):
+        """Indexing returns a subset of the Data object.
+
+        If given a slice or and array of boolean a new Data object is 
+        produced. If given a int a length two array with [x, y] is returned. 
+        """
+        if self.__index_check(k):
+            return self.values(k)
+        else:
+            return Data(self.values[k])
+
+    def __setitem__(self, k, v):
+        """Item assignment is not allowed in Data objects.
+
+        This kind of action is possible with the functions :meth:`set_x`, 
+        :meth:`set_y`, and :meth:`set_data`.
+        """
+        raise TypeError(
+            "Data objects do not allow item assignment. For this "
+            "functionality see .set_x, .set_y, and .set_data.")
+
+    def set_x(self, k, v):
+        """This is used for setting x values.
+
+        Parameters
+        ----------
+        k : slice
+            Objects that can be passed to a :class:`numpy.ndarray` as 
+            an index.
+        v : numpy.ndarray
+            The values to assign to the indexed values. 
+        """
+        if isinstance(v, Data):
+            raise TypeError(
+                "Cannot set the object type with a Data object.")
+        self.__index_check(k)
+        new_x = self.x
+        new_x[k] = v
+        self.__init__(new_x, self.y)
+
+    def set_y(self, k, v):
+        """This is used for setting x values.
+
+        Parameters
+        ----------
+        k : slice
+            Objects that can be passed to a :class:`numpy.ndarray` as 
+            an index.
+        v : numpy.ndarray
+            The values to assign to the indexed values. 
+        """
+        if isinstance(v, Data):
+            raise TypeError(
+                "Cannot set the object type with a Data object.")
+        self.__index_check(k)
+        new_y = self.y
+        new_y[k] = v
+        self.__init__(self.x, new_y)
+
+    def set_data(self, k, v):
+        """This is used for setting x and y values.
+
+        Parameters
+        ----------
+        k : slice
+            Objects that can be passed to a :class:`numpy.ndarray` as 
+            an index.
+        v : numpy.ndarray, Data
+            The values to assign to the indexed values. This can only be a
+            two column :class:`numpy.ndarray` or a :class:`Data` object.
+        """
+        if self.__index_check(k):
+            size = 2
+        else:
+            size = self.values[k].size
+        if not isinstance(v, (Data, np.ndarray)):
+            raise TypeError(
+                f"The value to assign data must be a data object or a two "
+                f"column numpy array. The type give was {type(v)}.")
+        elif isinstance(v, Data):
+            if size != v.values.size:
+                raise ValueError(
+                    f"The Data to set is a different size to the Data "
+                    f"object given. The size to index was {size/2} "
+                    f"while the data to set was {v.values.size/2}.")
+            else:
+                new_data = self.values
+                new_data[k] = v.values
+        elif v.ndim != 2:
+            raise ValueError(
+                f"The dimension of the numpy array to set two is not "
+                f"the correct shape. Needs to be a two column array shape "
+                f"given was {v.shape}.")
+        elif v.shape[1] != 2:
+            raise ValueError(
+                f"The dimension of the numpy array to set two does not "
+                f"have two columns. Needs to be a two column array shape "
+                f"given was {v.shape}.")
+        elif v.size != size:
+            raise ValueError(
+                f"The Data to set is a different size to the numpy "
+                f"array given. The size to index was {size/2} "
+                f"while the data to set was {v.size/2}.")
+        else:
+            new_data = self.values
+            new_data[k] = v
+        self.__init__(new_data)
+
+    def min_x(self):
+        """This provides the lowest value of x
+
+        Returns
+        -------
+        x_min : float
+            The minimum value of x
+        """
         return np.min(self.x)
 
     def max_x(self):
+        """This provides the highest value of x
+
+        Returns
+        -------
+        x_max : float
+            The maximum value of x
         """
-This provides the lowest value of x
-Returns:
-    A float of the minimum x value
-"""
         return np.max(self.x)
 
     def spacing_x(self):
+        """Returns the average spacing in x
+
+        Returns
+        -------
+        x_max : float
+            The average spacing in the x data
         """
-Provides the average separation of the x values
-(max_x - min_x)/num_points 
-Returns:
-    A float of the average spacing in x
-"""
         return (self.max_x() - self.min_x())/len(self)    
 
     def y_from_x(self, x_val):
@@ -417,12 +528,12 @@ Returns:
     A new data set with evenly interpolated points.
 '''
         if np.min(self.x) > min_x:
-            raise ValueError('min_x value to interpolate is below data')
+            raise ValueError("min_x value to interpolate is below data")
         if np.max(self.x) < max_x:
-            raise ValueError('max_x value to interpolate is above data')
+            raise ValueError("max_x value to interpolate is above data")
         x_vals = np.arange(min_x, max_x, step_size)
-        return Data(x_vals,
-                interp1d(self.x, self.y, **kwargs)(x_vals))
+        y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
+        return Data(x_vals, y_vals)
 
     def to_range(self, min_x, max_x, step_size, **kwargs):
         '''
@@ -438,16 +549,14 @@ Args:
     step_size (float): The step size between each point
 '''
         if np.min(self.x) > min_x:
-            raise ValueError('min_x value to interpolate is below data')
+            raise ValueError("min_x value to interpolate is below data")
         if np.max(self.x) < max_x:
-            raise ValueError('max_x value to interpolate is above data')
+            raise ValueError("max_x value to interpolate is above data")
         x_vals = np.arange(min_x, max_x, step_size)
         y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
-        self.values = np.concatenate((x_vals[:, None], y_vals[:, None]),
-                                     axis=1)
-        self.x = x_vals
-        self.y = y_vals
-        self.both = x_vals, y_vals
+        # sets the attributes
+        self.__init__(x_vals, y_vals)
+        return self
 
 
     def interp_full(self, step_size, **kwargs):
@@ -496,11 +605,9 @@ Args:
         x_vals = np.linspace(x_start, x_stop,
                            int(round((x_stop - x_start)/step_size)) + 1)
         y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
-        self.values = np.concatenate((x_vals[:, None], y_vals[:, None]),
-                                     axis=1)
-        self.x = x_vals
-        self.y = y_vals
-        self.both = x_vals, y_vals
+        # Set the attributes
+        self.__init__(x_vals, y_vals)
+        return self
 
     def apply_x(self, function):
         """
