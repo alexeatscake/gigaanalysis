@@ -144,12 +144,6 @@ class Data():
     def __repr__(self):
         return f"GA Data object:\n {str(self.values)[1:-1]}"
 
-    def __dir__(self):
-        return ['values', 'x', 'y', 'both',
-                'y_from_x', 'x_cut',
-                'interp_full', 'interp_number', 'interp_range',
-                'plot']
-
     def __len__(self):
         return self.x.size
 
@@ -649,6 +643,9 @@ class Data():
         ----------
         x_vals : array_like
             The x values to interpolate which will be the x values.
+        kind : str or int, optional
+            The type of interpolation to use. Passed to 
+            :func:`scipy.interpolate.interp1d`, default is `linear`.
 
         Returns
         -------
@@ -721,6 +718,37 @@ class Data():
             Data class with new y values.
         """
         return Data(self.x, function(self.y))
+
+    def append(self, new_data, in_place=False):
+        """This adds values to the end of the data object.
+
+        Parameters
+        ----------
+        new_data : Data
+            These are the values to add onto the end of the data object
+        in_place : bool, optional
+            Weather to edit the object or to return a new one. The default 
+            is `False` which returns a new object.
+
+        Returns
+        -------
+        combined_data : Data
+            If in_place is `False` then a new Data object is returned.
+        """
+        if isinstance(new_data, Data):
+            pass
+        else:
+            try:
+                new_data = Data(new_data)
+            except:
+                raise ValueError(
+                    f"The new_data to append was not a Data object or "
+                    f"could be cast to one. Was of type {type(new_data)}")
+        new_vals = np.append(self.values, new_data.values, axis=0)
+        if in_place:
+            self.__init__(new_vals)
+        else:
+            return Data(new_vals)
 
     def plot(self, *args, axis=None, **kwargs):
         """Simple plotting utility
@@ -959,12 +987,80 @@ def match_x(data_list,
             f"but was of the type {type(data_list)}.")
 
 
-def concatenate(data_list):
-    """The 
+def __interp_list(data_list, x_vals, kind='linear'):
+    """Interpolates all the Data objects in a list. Is used by `interp_set`.
+    """
+    new_list = []
+    for dat in data_list:
+        if not isinstance(dat, Data):
+            raise TypeError(
+                f"One of the objects in the list was not a Data "
+                f"object. It was of type {type(dat)}")
+        new_list.append(dat.interp_values(x_vals, kind=kind))
+    return new_list
 
+
+def interp_set(data_list, x_vals, kind='linear'):
+    """Interpolates all Data objects in list or dictionary.
+
+    This applied :meth:`Data.interp_values` to every item in the set and 
+    returns a new set.
+
+    Parameters
+    ----------
+    data_list : list or dict
+        A list or dictionary of Data objects to interpolate.
+    x_vals : :class:`numpy.ndarray`
+        The x values to interpolate to produce the new set.
+    kind : str or int, optional
+        The type of interpolation to use. Passed to 
+        :func:`scipy.interpolate.interp1d`, default is `linear`.
+
+    Returns
+    -------
+    interpolated_set : list or dict
+        The new set of Data is the same form but with interpolated values.
     """
     if isinstance(data_list, Data):
-        return data_list
+        return [data_list.interp_values(x_vals, kind=kind)]
+    elif isinstance(data_list, list):
+        return __interp_list(data_list, x_vals, kind=kind)
+    elif isinstance(data_list, dict):
+        key, vals = zip(*data_list.items())
+        return dict(zip(key, __interp_list(vals, x_vals, kind=kind)))
+    elif isinstance(data_list, tuple):
+        return __interp_list(list(data_list), x_vals, kind=kind)
+    else:
+        raise TypeError(
+            f"The data_list needs to be a dictionary or a list but was "
+            f"instead of type {type(data_list)}.")
+
+
+def concatenate(data_list, strip_sort=False):
+    """Combines our collection of Data objects into one.
+
+    This takes either a list, dictionary, or tuple of Data objects or arrays 
+    and concatenates their values into one data object.
+    This makes use of :func:`numpy.concatenate`.
+
+    Parameters
+    ----------
+    data_list : list or dict
+        The collection of Data objects to combine.
+    strip_sort : bool or {'strip', 'sort'}, optional
+        This will pass to the strip_sort keyword argument when producing 
+        the final Data object.
+
+    Returns
+    -------
+    concatenated_data : Data
+        The data combined into one Data object.
+    """
+    if isinstance(data_list, Data):
+        if strip_sort:
+            return Data(data_list, strip_sort=strip_sort)
+        else:
+            return data_list
     elif isinstance(data_list, list):
         pass
     elif isinstance(data_list, dict):
@@ -985,14 +1081,14 @@ def concatenate(data_list):
             else:
                 raise ValueError(
                     f"The values to concatenate in the form of a "
-                    f"numpy array are the wrong shape (dat.shape)")
+                    f"numpy array are the wrong shape {dat.shape}")
         elif isinstance(dat, list) and len(dat) == 2:
             all_vals.append(np.asarray([dat]))
         else:
             raise TypeError(
                 f"The list contains objects which are not Data objects "
                 f"one of the objects was a {type(dat)}")
-    return Data(np.concatenate(all_vals, axis=0))
+    return Data(np.concatenate(all_vals, axis=0), strip_sort=strip_sort)
 
 
 def save_arrays(array_list, column_names, file_name, **kwargs):
