@@ -14,6 +14,14 @@ gigaanalysis.data
    :undoc-members:
    :show-inheritance:
 
+gigaanalysis.set
+-----------------
+
+.. automodule:: gigaanalysis.dset
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 gigaanalysis.fit
 ----------------
 

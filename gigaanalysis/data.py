@@ -121,11 +121,11 @@ class Data():
 
         if strip_sort:
             if strip_sort == 'strip':
-                values = values[np.isfinite(values).any(axis=1)]
+                values = values[np.isfinite(values).all(axis=1)]
             elif strip_sort == 'sort':
                 values = values[np.argsort(values[:, 0]), :]
             else:
-                values = values[np.isfinite(values).any(axis=1)]
+                values = values[np.isfinite(values).all(axis=1)]
                 values = values[np.argsort(values[:, 0]), :]
 
 
@@ -320,6 +320,8 @@ class Data():
         elif k.ndim != 1:
             raise IndexError(
                 "Data objec can only Index is one dimension.")
+        elif k.dtype == np.int_:
+            return False
         elif k.size != self.x.size:
             raise IndexError(
                 f"Index given was wrong length. The length of index was "
@@ -345,7 +347,7 @@ class Data():
         This kind of action is possible with the functions :meth:`set_x`, 
         :meth:`set_y`, and :meth:`set_data`.
         """
-        raise TypeError(
+        raise Warning(
             "Data objects do not allow item assignment. For this "
             "functionality see .set_x, .set_y, and .set_data.")
 
@@ -466,31 +468,51 @@ class Data():
         """
         return (self.max_x() - self.min_x())/len(self)    
 
-    def y_from_x(self, x_val):
+    def y_from_x(self, x_val, bounds_error=True, kind='linear'):
+        """Gives the y value for a certain x value or set of x values.
+
+        Parameters
+        ----------
+        x_val : float
+            X values to interpolate y values from.
+        bounds_error : bool, optional
+            If an error should thrown in x value is out of range, 
+            default True.
+        
+        Returns
+        -------
+        y_val : float or numpy.ndarray
+            Corresponding to the requested x values in an array if only one 
+            value is given a float is returned.
         """
-This function gives the y value for a certain x value or
-set of x values.
-Args:
-    x_val (float): X values to interpolate y values from
-Returns:
-    y values corresponding to the requested x values in nd array
-"""
+        if bounds_error and \
+            (np.max(x_val)>self.max_x() or np.min(x_val)<self.min_x()):
+            raise ValueError(
+                f"The given x_values are out side of the range of data "
+                f"which is between {self.min_x()} and {self.max_x()}")
+
         y_val = interp1d(self.x, self.y, bounds_error=False,
-                        fill_value=(self.y.min(), self.y.max()))(x_val)
+            fill_value=(self.y.min(), self.y.max()), kind=kind)(x_val)
         if y_val.size != 1:
             return y_val
         else:
             return float(y_val)
 
     def x_cut(self, x_min, x_max):
+        """This cuts the data to a region between x_min and x_max.
+        
+        Parameters
+        ----------    
+        x_min : float
+            The minimal x value to cut the data.
+        x_max : float
+            The maximal x value to cut the data.
+        
+        Returns
+        -------
+        cut_data : Data    
+            A data object with the values cut to the given x range.
         """
-This cuts the data to a region between x_min and x_max
-Args:
-    x_min (float): The minimal x value to cut the data
-    x_max (float): The maximal x value to cut the data
-Returns:
-    An data object with the values cut to the given x range
-"""
         if x_min > x_max:
             raise ValueError('x_min should be smaller than x_max')
         return Data(self.values[
@@ -498,205 +520,499 @@ Returns:
                     np.searchsorted(self.x, x_max, side='right'), :])
 
     def strip_nan(self):
+        """This removes any row which has a nan or infinite values in.
+        
+        Returns
+        -------
+        stripped_data : Data
+            Data class without non-finite values in.
         """
-This removes any row which has a nan value in.
-Returns:
-    Data class without any nan in.
-"""
-        return Data(self.values[np.isfinite(self.values).any(axis=1)])
+        return Data(self.values[np.isfinite(self.values).all(axis=1)])
 
     def sort(self):
+        """Sorts the data set in x and returns the new array.
+
+        Returns
+        -------
+        sorted_data : Data
+            A Data class with the sorted data.
         """
-This sorts the data set in x and returns the new array.
-Returns:
-    A Data class with the sorted data.
-"""
         return Data(self.values[np.argsort(self.x), :])
 
-    def interp_range(self, min_x, max_x, step_size, **kwargs):
-        '''
-This evenly interpolates the data points between a min
-and max x value. This is used so that the different
-sweeps can be combined with the same x-axis.
-It uses scipy.interpolate.interp1d and **kwargs can be pass to it.
-Args:
-    data_set (Data): The data set to be interpolated
-    min_x (float): The minimum x value in the interpolation
-    max_y (float): The maximum x value in the interpolation
-    step_size (float): The step size between each point
-Returns:
-    A new data set with evenly interpolated points.
-'''
+    def interp_range(self, min_x, max_x, 
+        step_size=None, num_points=None, shift_step=True,
+        kind='linear'):
+        """Evenly interpolates in x the data between a min and max value.
+
+        This is used for combining datasets with corresponding but different 
+        x values. Either `step_size` or `num_points` can be defined. If 
+        `step_size` is defined :func:`numpy.arange` is used. If `num_points` 
+        is defined :func:`numpy.linspace` is used.
+        If using `step_size` it rounds `min_x` to the next integer value of 
+        the steps, unless `shift_step` is `False`.
+        It uses :func:`scipy.interpolate.interp1d`.
+        
+        Parameters
+        ----------
+        min_x :float
+            The minimum x value in the interpolation.
+        max_y : float
+            The maximum x value in the interpolation.
+        step_size : float, optional
+            The step size between each point. Either this or num_points must 
+            be defined.
+        num_points : int, optional
+            The number of points to interpolate. Either this or step_size 
+            must be defined.
+        shift_step: bool, optional
+            If the `min_x` value should be rounded to the next whole step. 
+            The default is True.
+        
+        Returns
+        -------
+        interpolated_data : Data
+            A Data object with evenly interpolated points.
+        """
+        if step_size is None and num_points is None:
+            raise ValueError(
+                f"Must define either step_size or num_points.")
+        if min_x > max_x:
+            min_x, max_x = max_x, min_x  # order min and max
         if np.min(self.x) > min_x:
             raise ValueError("min_x value to interpolate is below data")
         if np.max(self.x) < max_x:
             raise ValueError("max_x value to interpolate is above data")
-        x_vals = np.arange(min_x, max_x, step_size)
-        y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
+        if step_size is not None:
+            if shift_step:
+                min_x = np.ceil(min_x/step_size)*step_size
+            x_vals = np.arange(min_x, max_x, step_size)
+        elif num_points is not None:
+            x_vals = np.linspace(min_x, max_x, num_points)
+        # The bounds are used in the rare case of floating point issues.
+        min_y = self.y[self.x.argmin()]
+        max_y = self.y[self.x.argmax()]
+        y_vals = interp1d(self.x, self.y, kind=kind,
+            bounds_error=False, fill_value=(min_y, max_y))(x_vals)
         return Data(x_vals, y_vals)
 
-    def to_range(self, min_x, max_x, step_size, **kwargs):
-        '''
-This evenly interpolates the data points between a min
-and max x value. This is used so that the different
-data objects can be combined with the same x-axis. This changes
-the object.
-It uses scipy.interpolate.interp1d and **kwargs can be pass to it.
-Args:
-    data_set (Data): The data set to be interpolated
-    min_x (float): The minimum x value in the interpolation
-    max_y (float): The maximum x value in the interpolation
-    step_size (float): The step size between each point
-'''
-        if np.min(self.x) > min_x:
+    def interp_step(self, step_size, shift_step=True, kind='linear'):
+        """Evenly interpolates in x the data between a min and max value.
+
+        This uses :meth:`Data.interp_range` specifying `step_size` and 
+        giving the maximum range of x points.
+        If using `step_size` it rounds `min_x` to the next integer value of 
+        the steps, unless `shift_step` is `False`.
+        
+        Parameters
+        ----------
+        step_size : float, optional
+            The step size between each point. Either this or num_points must 
+            be defined.
+        shift_step: bool, optional
+            If the `min_x` value should be rounded to the next whole step. 
+            The default is True.
+        
+        Returns
+        -------
+        interpolated_data : Data
+            A Data object with evenly interpolated points.
+        """
+        return self.interp_range(self.min_x(), self.max_x(),
+            step_size=step_size, shift_step=shift_step, kind=kind,)
+
+    def interp_number(self, num_points, kind='linear'):
+        """Evenly interpolates in x the data for a fixed point number.
+
+        This uses :meth:`Data.interp_range` specifying `num_points` and 
+        giving the maximum range of x points.
+        
+        Parameters
+        ----------
+        num_points : int
+            The number of points to interpolate.
+        
+        Returns
+        -------
+        interpolated_data : Data
+            A Data object with evenly interpolated points.
+        """
+        return self.interp_range(self.min_x(), self.max_x(),
+            num_points=num_points, kind=kind,)
+
+    def interp_values(self, x_vals, kind='linear'):
+        """Produce Data object from interpolating x values.
+
+        This uses :func:`scipy.interpolate.interp1d` to produce a Data 
+        object by interpolating y values from given x values.
+
+        Parameters
+        ----------
+        x_vals : array_like
+            The x values to interpolate which will be the x values.
+
+        Returns
+        -------
+        interpolated_data : Data
+            A Data object with the given x values and interpolated y values.
+        """
+        x_vals  = np.asarray(x_vals)
+        if x_vals.ndim != 1:
+            raise ValueError(
+                f"x_vals had shape {x_vals.shape} where as it need to be 1D")
+
+        if self.min_x() > np.min(x_vals):
             raise ValueError("min_x value to interpolate is below data")
-        if np.max(self.x) < max_x:
+        if self.max_x() < np.max(x_vals):
             raise ValueError("max_x value to interpolate is above data")
-        x_vals = np.arange(min_x, max_x, step_size)
-        y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
-        # sets the attributes
-        self.__init__(x_vals, y_vals)
-        return self
-
-
-    def interp_full(self, step_size, **kwargs):
-        """
-This interpolates the data to give an even spacing. This is useful
-for combining different data sets.
-It uses scipy.interpolate.interp1d and **kwargs can be pass to it.
-Args:
-    step_size (float): The spacing of the data along x.
-Return:
-    A Data class with the interpolated data.
-"""
-        x_start = np.ceil(self.x.min()/step_size)*step_size
-        x_stop = np.floor(self.x.max()/step_size)*step_size
-        x_vals = np.linspace(x_start, x_stop,
-                           int(round((x_stop - x_start)/step_size)) + 1)
-        y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
+        # The bounds are used in the rare case of floating point issues.
+        min_y = self.y[self.x.argmin()]
+        max_y = self.y[self.x.argmax()]
+        y_vals = interp1d(self.x, self.y, kind=kind,
+            bounds_error=False, fill_value=(min_y, max_y))(x_vals)
         return Data(x_vals, y_vals)
 
-    def interp_number(self, point_number, **kwargs):
-        """
-This interpolates the data to give an even spacing. This is useful
-for saving data of different types together
-It uses scipy.interpolate.interp1d and **kwargs can be pass to it.
-Args:
-    point_number (int): The spacing of the data along x.
-Return:
-    A Data class with the interpolated data.
-"""
+    def to_even(self, step_size, shift_step=True):
+        """Evenly interpolates the data and updates the data object.
 
-        x_vals = np.linspace(self.x.min(), self.x.max(),
-                             int(point_number))
-        y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
-        return Data(x_vals, y_vals)
-
-    def to_even(self, step_size, **kwargs):
+        This uses :meth:`Data.interp_range` specifying `step_size` and 
+        giving the maximum range of x points.
+        If using `step_size` it rounds `min_x` to the next integer value of 
+        the steps, unless `shift_step` is `False`.
+        
+        Parameters
+        ----------
+        step_size : float, optional
+            The step size between each point. Either this or num_points must 
+            be defined.
+        shift_step: bool, optional
+            If the `min_x` value should be rounded to the next whole step. 
+            The default is True.
         """
-This interpolates the data to give an even spacing, and changes
-the data file.
-It uses scipy.interpolate.interp1d and **kwargs can be pass to it.
-Args:
-    step_size (float): The spacing of the data along x.
-"""
-        x_start = np.ceil(self.x.min()/step_size)*step_size
-        x_stop = np.floor(self.x.max()/step_size)*step_size
-        x_vals = np.linspace(x_start, x_stop,
-                           int(round((x_stop - x_start)/step_size)) + 1)
-        y_vals = interp1d(self.x, self.y, **kwargs)(x_vals)
-        # Set the attributes
-        self.__init__(x_vals, y_vals)
-        return self
+        self.__init__(self.interp_range(self.min_x(), self.max_x(),
+            step_size=step_size, shift_step=shift_step,
+            kind=kind,).values)
 
     def apply_x(self, function):
+        """This takes a function and applies it to the x values.
+
+        Parameters
+        ----------
+        function : Callable
+            The function to apply to the x values.
+        
+        Returns
+        -------
+        transformed_data
+            Data class with new x values.
         """
-This takes a function and applies it to the x values.
-Args:
-    function (func): THe function to apply to the x values
-Returns:
-    Data class with new x values
-"""
         return Data(function(self.x), self.y)
 
     def apply_y(self, function):
+        """This takes a function and applies it to the y values.
+
+        Parameters
+        ----------
+        function : Callable
+            The function to apply to the y values.
+        
+        Returns
+        -------
+        transformed_data
+            Data class with new y values.
         """
-This takes a function and applies it to the y values.
-Args:
-    function (func): THe function to apply to the y values
-Returns:
-    Data class with new x values
-"""
         return Data(self.x, function(self.y))
 
     def plot(self, *args, axis=None, **kwargs):
+        """Simple plotting utility
+        
+        Makes use of matplotlib function :func:`matplotlib.pyplot.plot`.
+        Runs ``matplotlib.pyplot.plot(self.x, self.y, *args, **kwargs)``
+        If provided an axis keyword which operates so that if given
+        ``axis.plot(self.x, self.y, *args, **kwargs)``.
         """
-Simple plotting function that runs
-matplotlib.pyplot.plot(self.x, self.y, *args, **kwargs)
-Added a axis keyword which operates so that if given
-axis.plot(self.x, self.y, *args, **kwargs)
-"""
         if axis == None:
             plt.plot(self.x, self.y, *args, **kwargs)
         else:
             axis.plot(self.x, self.y, *args, **kwargs)
 
     def to_csv(self, filename, columns=["X", "Y"], **kwargs):
+        """Saves the data as a simple csv
+
+        Uses :func:`pandas.DataFrame.to_csv` and kwargs are pass to it.
+
+        Parameters
+        ----------
+        filename : str
+            Filename to save the data as.
+        columns : [str, str]
+            The title of the two columns.
         """
-        Saves the resistance vs field as a csv
-        uses pandas.DataFrame.to_csv and kwargs are pass to it
-        Args:
-            filename (str): filename to save the data as
-            columns : [str, str]
-                The title of the two columns
-        """
-        pd.DataFrame(values, columns=columns
+        pd.DataFrame(self.values, columns=columns
             ).to_csv(filename, **kwargs)
 
 
 def sum_data(data_list):
+    """Preforms the sum of the y data a set of Data class objects.
+    
+    Parameters
+    ----------
+    data_list : [Data]
+        List of Data objects to sum together.
+    
+    Returns
+    -------
+    summed_data : Data
+        A Data object with the summed y values of the original data sets.
     """
-Preforms the sum of the y data a set of Data class objects.
-Args:
-    data_list (list of Data): List of Data objects to sum together.
-Returns:
-    A Data object which is the sum of the y values of the original
-        data sets.
-"""
+    if isinstance(data_list, list):
+        pass
+    elif isinstance(data_list, dict):
+        data_list = list(data_list.values())
+    elif isinstance(data_list, Data):
+        return data_list
+    else:
+        raise TypeError(
+            f"The data_list was of type {type(data_list)} where as it "
+            f"needs to be either a list or a dict with Data objects as the "
+            f"values.")
+    if not isinstance(data_list[0], Data):
+            raise TypeError(
+                f"List contained type {type(data_list[0])} where is must "
+                f"only contain gigaanalysis.data.Data types.")
+    if len(data_list) == 1:
+        return data_list[0]
     total = data_list[0]
-    for data_set in data_list[1:]:
-        total += data_set.y
+    for dat in data_list[1:]:
+        if not isinstance(dat, Data):
+            raise TypeError(
+                f"List contained type {type(dat)} where is must "
+                f"only contain gigaanalysis.data.Data types.")
+        total += dat.y
     return total
 
 
 def mean(data_list):
+    """Preforms the mean of the y data a set of Data class objects.
+    
+    Parameters
+    ----------
+    data_list : [Data]
+        List of Data objects to sum together can also be a dictionary.
+    
+    Returns
+    -------
+    averaged_data : Data
+        A Data object with the summed y values of the original data sets.
     """
-Preforms the mean of the y data a set of Data class objects.
-Args:
-    data_list (list of Data): List of Data objects to combine together.
-Returns:
-    A Data object which is the average of the y values of the original
-        data sets.
-"""
     return sum_data(data_list)/len(data_list)
 
 
+def collect_y_values(data_list):
+    """Collates the y values into a array from a collection of Data objects.
+
+    This takes either a list or dictionary of Data objects and collects the
+    y values into one array. This can be useful of special comparisons such 
+    as trimmed means and standard deviations.
+
+    Parameters
+    ----------
+    data_list : list or dict
+        A list of Data objects or a dictionary where the values are Data 
+        objects. The x values or all of these need to be the same.
+
+    Returns
+    -------
+    x_vals : numpy.ndarray
+        One copy of the x values of the arrays.
+    all_data : numpy.ndarray
+        All the y data from the different data objects each on in it's own
+        column.
+    """
+    if isinstance(data_list, list):
+        pass
+    elif isinstance(data_list, dict):
+        data_list = list(data_list.values())
+    elif isinstance(data_list, Data):
+        return data_list.y[:, None]
+    else:
+        raise TypeError(
+            f"The data_list was of type {type(data_list)} where as it "
+            f"needs to be either a list or a dict with Data objects as the "
+            f"values.")
+    if not isinstance(data_list[0], Data):
+            raise TypeError(
+                f"List contained type {type(data_list[0])} where is must "
+                f"only contain gigaanalysis.data.Data types.")
+    if len(data_list) == 1:
+        return data_list[0].y[:, None]
+    all_data = data_list[0].y[:, None]
+    x_vals = data_list[0].x
+    for dat in data_list[1:]:
+        if not isinstance(dat, Data):
+            raise TypeError(
+                f"List contained type {type(dat)} where is must "
+                f"only contain gigaanalysis.data.Data types.")
+        elif not np.array_equal(dat.x, x_vals):
+            raise TypeError(
+                f"The x values in the arrays do not match.")
+        all_data = np.concatenate([all_data, dat.y[:, None]], axis=1)
+    return x_vals, all_data
+
+
+def __make_x_vals(min_x, max_x, 
+    step_size=None, num_points=None, shift_step=True):
+    """This generates a set of evenly spaced x values.
+    """
+    if step_size is not None:
+        if shift_step:
+            min_x = np.ceil(min_x/step_size)*step_size
+        x_vals = np.arange(min_x, max_x, step_size)
+    elif num_points is not None:
+        x_vals = np.linspace(min_x, max_x, num_points)
+    else:
+        raise ValueError(
+            f"Must define either step_size or num_points.")
+    return x_vals
+
+
+def __match_x_list(data_list,
+    step_size=None, num_points=None, shift_step=True):
+    """This interpolates all the data sets in a list to the same x values.
+
+    It takes the values from :func:`match_x` and each set to  
+    :func:`__match_x_list`, after working out the largest range of x_values
+    that can be interpolated across every dataset.
+    """
+    min_x = -np.inf
+    max_x = np.inf
+    max_len = 0
+    if not isinstance(data_list, list):
+        raise TypeError(
+            f"data_list need to be list it was a {type(data_list)}")
+    for dat in data_list:
+        if not isinstance(dat, Data):
+            raise TypeError(
+                f"data_list needs to be a list of Data objects but "
+                f"contained the type {type(dat)}.")
+        min_x = min_x if min_x > dat.min_x() else dat.min_x()
+        max_x = max_x if max_x < dat.max_x() else dat.max_x()
+        max_len = max_len if max_len > len(dat) else len(dat)
+    if step_size is None and num_points is None:
+        num_points = max_len
+    x_vals = __make_x_vals(min_x, max_x, step_size=step_size,
+        num_points=num_points, shift_step=shift_step)
+    new_data_list = [
+        dat.interp_values(x_vals)
+        for dat in data_list
+    ]
+    return new_data_list
+        
+
+def match_x(data_list,
+    step_size=None, num_points=None, shift_step=True):
+    """This transform a collection of dataset to have the same x values.
+
+    This applies :meth:`Data.interp_values` to every data object with the 
+    largest possible range of x values to produce the new set of data. This 
+    is useful if the data object want to be combined arithmetically.
+
+    Parameters
+    ----------
+    data_list : list or dict of Data
+        A list of data objects or dictionary with data objects as the values.
+    step_size : float, optional
+        Sets the spacing in the x values to a fixed amount if given  
+        :func:`numpy.arange` is called.
+    num_points : int, optional
+        The number of points to generates for the x values only used if 
+        `step_size` is not given or None. If used :func:`numpy.linspace` 
+        is called.
+    shift_step : bool, optional 
+        Only valid if step_size is not new. The default is True and then 
+        the first value is an integer number of the steps. If False the 
+        lowest x value is used as the first value of the step.
+
+    Returns
+    -------
+    new_data_list : list or dict of Data objects
+        The new data objects with the x values that are interoperated to be 
+        all the same. If a dict is provided a dict is returned with the 
+        same keys as before.
+    """
+    if isinstance(data_list, Data):
+        return __match_x_list([data_list], step_size=step_size,
+            num_points=num_points, shift_step=shift_step)
+    elif isinstance(data_list, list):
+        return __match_x_list(data_list, step_size=step_size,
+            num_points=num_points, shift_step=shift_step)
+    elif isinstance(data_list, dict):
+        key, vals = zip(*data_list.items())
+        new_vals = __match_x_list(list(vals), step_size=step_size,
+            num_points=num_points, shift_step=shift_step)
+        return dict(zip(key, new_vals))
+    elif isinstance(data_list, tuple):
+         return __match_x_list(list(data_list), step_size=step_size,
+            num_points=num_points, shift_step=shift_step)
+    else:
+        raise TypeError(
+            f"data_list need to be either a list or a dictionary "
+            f"but was of the type {type(data_list)}.")
+
+
+def concatenate(data_list):
+    """The 
+
+    """
+    if isinstance(data_list, Data):
+        return data_list
+    elif isinstance(data_list, list):
+        pass
+    elif isinstance(data_list, dict):
+        data_list = list(data_list.values())
+    elif isinstance(data_list, tuple):
+         data_list = list(data_list)
+    else:
+        raise TypeError(
+            f"data_list need to be either a list or a dictionary "
+            f"but was of the type {type(data_list)}.")
+    all_vals = []
+    for dat in data_list:
+        if isinstance(dat, Data):
+            all_vals.append(dat.values)
+        elif isinstance(dat, np.ndarray):
+            if len(dat.shape) == 2 and dat.shape[1] == 2:
+                all_vals.append(dat)
+            else:
+                raise ValueError(
+                    f"The values to concatenate in the form of a "
+                    f"numpy array are the wrong shape (dat.shape)")
+        elif isinstance(dat, list) and len(dat) == 2:
+            all_vals.append(np.asarray([dat]))
+        else:
+            raise TypeError(
+                f"The list contains objects which are not Data objects "
+                f"one of the objects was a {type(dat)}")
+    return Data(np.concatenate(all_vals, axis=0))
+
+
 def save_arrays(array_list, column_names, file_name, **kwargs):
-    """This saves a collection of one dimensional :class:`numpy.ndarray` 
+    """Writes a list of arrays to csv.
+
+    This saves a collection of one dimensional :class:`numpy.ndarray` 
     stored in a list into a .csv file. It does this by passing it to a 
     :class:`pandas.DataFrame` object and using the method `to_csv`. If the 
     arrays are different lengths the values are padded with NaNs.
-    kwargs are passed to :meth:`pandas.DataFrame.to_csv`
+    kwargs are passed to :meth:`pandas.DataFrame.to_csv`.
 
     Parameters
     ----------
     array_list : [numpy.ndarray]
-        A list of 1d numpy.ndarrays to save to the .csv file
+        A list of 1d numpy.ndarrays to save to the .csv file.
     columns_names : [str]
         A list of column names for the .csv file the same length as the list 
-        of data arrays
+        of data arrays.
     file_name : str
-        The file name to save the file as
+        The file name to save the file as.
     """
     if not isinstance(array_list, list):
         raise TypeError("array_list is not a list.")
@@ -717,6 +1033,7 @@ def save_arrays(array_list, column_names, file_name, **kwargs):
     to_concat = []
     for arr in array_list:
         to_concat.append(np.pad(arr, (0, max_length - arr.size),
+            mode='constant',
             constant_values=np.nan)[:, None])
     to_save = np.concatenate(to_concat, axis=1)
     if 'index' not in kwargs.keys():
@@ -725,7 +1042,7 @@ def save_arrays(array_list, column_names, file_name, **kwargs):
 
 
 def save_data(data_list, data_names, file_name, 
-    x_name='X', y_name='Y', name_space='_', **kwargs):
+    x_name='X', y_name='Y', name_space='/', no_sapce=True, **kwargs):
     """Saves a list of data objects in to a .csv file.
 
     This works by passing to :func:`save_arrays` and subsequently to 
@@ -741,16 +1058,16 @@ def save_data(data_list, data_names, file_name,
         objects. These will make the first half of the column name in the 
         .csv file.
     file_name : str
-        The name the file will be saved as
+        The name the file will be saved as.
     x_name : str, optional
         The string to be append to the data name to indicate the x column in 
-        the file. Default is 'X'
+        the file. Default is 'X'.
     y_name : str, optional
         The string to be append to the data name to indicate the y column in 
-        the file. Default is 'Y'
+        the file. Default is 'Y'.
     name_space : str, optional
         The string that separates the data_name and the x or y column name 
-        in the column headers in the .csv file. The default is '_'.
+        in the column headers in the .csv file. The default is '/'.
     """
     if not isinstance(data_list, list):
         raise TypeError("data_list is not a list.")
@@ -767,14 +1084,20 @@ def save_data(data_list, data_names, file_name,
         array_list.append(dat.x)
         array_list.append(dat.y)
     column_names = []
+    striping = ',' + name_space
+    if no_sapce:
+        striping += ' '
+    x_name = str(x_name).strip(striping)
+    y_name = str(y_name).strip(striping)
     for name in data_names:
+        name = str(name).strip(striping)
         column_names.append(name + name_space + x_name)
         column_names.append(name + name_space + y_name)
     save_arrays(array_list, column_names, file_name, **kwargs)
 
 
 def save_dict(data_dict, file_name,
-    x_name='X', y_name='Y', name_space='_', **kwargs):
+    x_name='X', y_name='Y', name_space='/', **kwargs):
     """Saves a dictionary of data objects in to a .csv file.
 
     This works by passing to :func:`save_data` and subsequently to 
@@ -789,16 +1112,16 @@ def save_dict(data_dict, file_name,
         the dictionary will be used as the data names when passed to 
         :func:`save_data`.
     file_name : str
-        The name the file will be saved as
+        The name the file will be saved as.
     x_name : str, optional
         The string to be append to the data name to indicate the x column in 
-        the file. Default is 'X'
+        the file. Default is 'X'.
     y_name : str, optional
         The string to be append to the data name to indicate the y column in 
-        the file. Default is 'Y'
+        the file. Default is 'Y'.
     name_space : str, optional
         The string that separates the data_name and the x or y column name 
-        in the column headers in the .csv file. The default is '_'.
+        in the column headers in the .csv file. The default is '/'.
     """
     if not isinstance(data_dict, dict):
         raise TypeError("data_dict is not a dictionary.")
@@ -808,6 +1131,75 @@ def save_dict(data_dict, file_name,
                 "Data objects.")
     save_data(list(data_dict.values()), list(data_dict.keys()), file_name,
         x_name=x_name, y_name=y_name, name_space=name_space, **kwargs)
+
+
+def load_dict(file_name, name_space='/',
+    strip_sort=False, interp_full=None, **kwargs):
+    """Loads from a file a dictionary full of Data objects.
+
+    The type of file it loads is the default produced by :func:`save_dict`. 
+    It assumes there is one line for the headers and they are used for the 
+    keys of the dictionary. It also removes NaNs at the end of each sweep to 
+    undo what is produced by uneven length of data objects.
+    It makes use of :func:`pandas.read_csv`, and **kwargs is passed to them.
+
+    Parameters
+    ----------
+    file_name : str
+        The name and location of the file.
+    name_space : str
+        The string that separates the key from the x and y names.
+    strip_sort : bool or {'strip', 'sort'}, optional
+        Passed to :class:`Data`.
+        If true the data points with NaN are removed using 
+        :func:`numpy.isfinite` and the data is sorted by the x values.
+        If 'strip' is given NaNs are removed but the data isn't sorted.
+        If 'sort' is given the data is sorted but NaNs are left in.
+        Default is False so the data isn't changed.
+    interp_full : float, optional
+        Passed to :class:`Data`.
+        This interpolates the data to give an even spacing using the 
+        inbuilt method :meth:`to_even`. The default is None and the 
+        interpolation isn't done.
+
+    Returns
+    -------
+    data_dict : {str: Data}
+        The data contained in the file in the form of a dictionary where the 
+        keys are obtained from the header of the data file.
+    """
+    def to_key(column_name):
+        """Makes the key from the column name."""
+        if name_space in column_name:
+            return name_space.join(column_name.split(name_space)[:-1])
+        else:
+            return column_name
+
+    data_df = pd.read_csv(file_name, **kwargs)
+    if len(data_df.columns)%2 == 1:
+        raise ValueError(
+            f"There needs to be an even number of columns. "
+            f"The csv had {len(data.columns)}.")
+    data_dict = {}
+    for i in range(int(len(data_df.columns)/2)):
+        to_read = data_df.iloc[:, [2*i, 2*i+1]]
+        key = to_key(to_read.columns[0])
+        if key != to_key(to_read.columns[1]):
+            raise ValueError(
+                f"The columns names did not match for X and Y data. "
+                f"The columns were {to_read.columns}.")
+        # This next bit removes nans added to pad the data.
+        for n, x in enumerate(to_read.values[-1::-1, 0]):
+            if x == x:
+                last_val = n
+                break
+        if last_val == 0:
+            vals = to_read.values
+        else:
+            vals = to_read.values[:-last_val, :]
+        data_dict[key] = Data(vals,
+            strip_sort=strip_sort, interp_full=interp_full)
+    return data_dict
 
 
 def gen_rand(n, func=None, seed=None):
@@ -821,15 +1213,15 @@ def gen_rand(n, func=None, seed=None):
     Parameters
     ----------
     n : int
-        Number of data point to have in the object
+        Number of data point to have in the object.
     func : function
-        A function with one parameter to transform the y values
+        A function with one parameter to transform the y values.
     seed : float
         Seed to be passed to :func:`numpy.random.default_rng`
 
     Returns
     -------
-    data : :class:`Data`
+    data : Data
         The generated data object. 
     """
     if not isinstance(n, (int, np.int_)):

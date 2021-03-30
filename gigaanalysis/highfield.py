@@ -11,10 +11,12 @@ from . import diglock
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import nptdms as tdms  # For read_ISSP
+#import nptdms as tdms  # For read_ISSP
 from ipywidgets import interact, FloatSlider # For PulsedLockIn.find_phase
 from scipy.signal import savgol_filter  # For PulsedLockIn.lockin_Volt_smooth
 
+'''
+Don't want nptdms
 
 def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
     """Takes data from TDMS file.
@@ -53,6 +55,8 @@ def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
                                      "/'{}'/'{}'".format(group, currentCH),
                                      "/'{}'/'{}'".format(group, voltageCH)]
                                      ].values.T]
+
+'''
 
 
 def PUtoB(PU_signal, field_factor, fit_points, to_fit='PU'):
