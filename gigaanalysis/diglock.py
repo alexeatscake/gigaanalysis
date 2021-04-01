@@ -371,9 +371,9 @@ def phase_in_change(signal_in, signal_out, **kwargs):
         signal in the out of phase is minimised.
     """
     if signal_in.shape != signal_out.shape:
-        raise(ValueError("The singal_in and singal_out arrays need to be "
-            "the same shape. They are {} and {}".format(
-                signal_in.shape, signal_out.shape)))
+        raise ValueError(
+            f"The singal_in and singal_out arrays need to be the same "
+            f"shape. They are {signal_in.shape} and {signal_out.shape}")
 
     scaling = 1./np.sum(
         np.sqrt(signal_in*signal_in + signal_out*signal_out))
@@ -423,9 +423,9 @@ def phase_in_value(signal_in, signal_out, **kwargs):
         the signal is maximised.
     """
     if signal_in.shape != signal_out.shape:
-        raise(ValueError("The singal_in and singal_out arrays need to be "
-            "the same shape. They are {} and {}".format(
-                signal_in.shape, signal_out.shape)))
+        raise ValueError(
+            f"The singal_in and singal_out arrays need to be the same "
+            f"shape. They are {signal_in.shape} and {signal_out.shape}")
 
     scaling = 1./np.sum(
         np.sqrt(signal_in*signal_in + signal_out*signal_out))
@@ -450,58 +450,101 @@ def phase_in_value(signal_in, signal_out, **kwargs):
 
 
 def phase_in(signal_in, signal_out, aim='change', **kwargs):
-    """
-    This passes to either phase_in_change or phase_in_value
+    """Picks a phase that maximises something about the signal.
+
+    This makes use of either :func:`phase_in_change` or 
+    :func:`phase_in_value', depending on the aim keyword.
+    Uses :func:`scipy.optimize.minimize` and keyword arguments are passed 
+    to it.
+
+    Parameters
+    ---------
+    signal_in : numpy.ndarray
+        The values containing the in phase signal.
+    signal_out : numpy.ndarray
+        The values containing the out of phase signal needs to be the same
+        shape as `signal_in`.
+    aim : str, {'change', 'value'}, optional
+        What to maximise. The default is 'change'.
+
+    Returns
+    -------
+    max_phase : float
+        The best phase in degrees between 0 deg and 360 deg.
     """
     if signal_in.shape != signal_out.shape:
-        raise(ValueError("The singal_in and singal_out arrays need to be "
-        "the same shape. They are {} and {}".format(
-            signal_in.shape, signal_out.shape)))
+        raise ValueError(
+            f"The singal_in and singal_out arrays need to be the same "
+            f"shape. They are {signal_in.shape} and {signal_out.shape}")
     if aim == 'change':
         return phase_in_change(signal_in, signal_out, **kwargs)
     elif aim == 'value':
         return phase_in_value(signal_in, signal_out, **kwargs)
     else:
-        raise ValueError("aim must be either 'change' or 'value'.")
+        raise ValueError(
+            f"Aim must be either 'change' or 'value', but was '{aim}'.")
 
 
 def select_not_spikes(data, sdl=2., region=1001):
-    '''
-    Finds the spikes inside the data set and excludes the region around them.
-    It does this by looking at when the values change unusually quickly.
-    Args:
-        data (np array): The signal to examine
-        sdl (float default=2.): The number of standard deviations the data
-            to be deviate from to be considered a outlier.
-        region (int default=1001): The number of points around the outlier
-            that are also considered bad.
-    Returns:
-        A np array of boolean values where true means good values.
-    '''
+    """Identifies spikes in the data and returns a boolean array.
+
+    This finds spikes in a set of data an excludes the region around them 
+    too. It does this by looking at where the value changes unusually 
+    quickly.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        The signal to check for spikes.
+    sdl : float, optional
+        The number of standard deviations the data need to deviate by to be 
+        considered an outlier.
+    region : int, optional
+        The number of points around an outlier to exclude. Default is 1001.
+
+    Returns
+    -------
+    good_vals : numpy.ndarray
+        A boolean array with the same shape as the signal data with points 
+        near spikes labelled `False` and the unaffected points labelled 
+        `True`.
+    """
     change = np.append(np.diff(data), 0)
     spikes = abs(change - np.mean(change)) > sdl*np.std(change)
     good_vals = np.convolve(spikes, np.ones(region), mode='same') == 0
     return good_vals
 
 
-def spike_lock_in(signal, time_const, fs, freq, phase, sdl=2, region=1001):
-    '''
-    Preforms a lock in of the signal and averages using a hamming window, the
-    same way as diglock.ham_lock_in. It also removes the points effected by
-    the spikes and interpolates between them using diglock.select_not_spikes.
-    Args:
-        signal: (numpy array): AC signal to lock in
-        time_const (float): Time for averaging
-        fs (float): Frequency of samples
-        freq (float): Frequency of the signal
-        phase (float): Phase of signal
-        sdl (float default=2.): The number of standard deviations the data
-            to be deviate from to be considered a outlier.
-        region (int default=1001): The number of points around the outlier
-            that are also considered bad.
-    Returns:
-        A numpy array of the signal after lock in.
-    '''
+def spike_lock_in(signal, time_const, fs, freq, phase, sdl=2., region=1001):
+    """Performs a lock in of the signal but with also spike removal.
+
+    This lock in makes use of :func:`ham_lock_in`. It also removes the 
+    points effected by spikes by using :func:`select_not_spikes`. It tries 
+    to interpolate between the points.
+    The spike removal works better with a smaller time constant.
+
+    Parameters
+    ----------
+    signal : numpy.ndarray
+        The AC signal to lock in to.
+    time_const : float 
+        The time for averaging with the hamming window.
+    fs : float
+        The sample frequency.
+    freq : float
+        The frequency of the AC signal.
+    phase : float
+        The phase of the AC signal in degrees.
+    sdl : float, optional
+        The number of standard deviations that will trigger a spike 
+        detection. The default is 2.
+
+    Returns
+    -------
+    locked_signal : numpy.ndarray
+        The signal after the spike removal and lock in process. 
+
+    """
     window = hamming_window(time_const, fs)
     lock_ref = gen_ref(freq, fs, phase, len(signal))
     times = np.arange(len(signal))
