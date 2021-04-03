@@ -11,89 +11,153 @@ from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter, get_window, find_peaks
 
 
-def invert_x(data_set):
+def invert_x(data):
+    """Inverts the x values and re-interpolates them.
+
+    This is useful for quantum oscillations because the periodicity in 
+    inverse magnetic field.
+
+    Parameters
+    ----------
+    data : Data
+        The data to invert
+
+    Returns
+    -------
+    inverted_data : Data
+        A data object with points evenly separated in the new inverted x 
+        values.
     """
-    This inverts the x data and then reinterpolates the y points so the x
-    data is evenly spread.
-    Args:
-        data_set (Data): The data object to invert x
-    Returns:
-        A data object with inverted x and evenly spaced x
-    """
-    if not np.all(data_set.x[:-1] <= data_set.x[1:]):
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+    elif not np.all(data.x[:-1] <= data.x[1:]):
         raise ValueError('Array to invert not sorted!')
-    interp = interp1d(*data_set.both, bounds_error=False,
-                     fill_value=(data_set.y[0], data_set.y[1])
-                     )  # Needs fill_value for floating point errors
-    new_x = np.linspace(1./data_set.x.max(), 1./data_set.x.min(),
-                       len(data_set))
+
+    interp = interp1d(*data.both, bounds_error=False,
+        fill_value=(data.y[0], data.y[1]))
+    new_x = np.linspace(1./data.x.max(), 1./data.x.min(), len(data))
     return Data(new_x, interp(1/new_x))
 
-def loess(data_set, x_window, polyorder):
+def loess(data, x_window, polyorder):
+    """This applies a LOESS filter to the data.
+
+    The LOESS filter is applied using :func:`scipy.signal.savgol_filter`. 
+
+    Parameters
+    ----------
+    data_set : Data
+        The data to be smoothed. The points must be evenly spaced in x for 
+        this to be applied.
+    x_window : float
+        The length of the window to apply in the same units as the x values.
+    polyorder : int
+        The order of the polynomial to apply.
+
+    Returns
+    -------
+    smoothed_data : Data
+        A data object after the data has been smoothed with LOESS filter.
     """
-This performs a Local regression smooth on the data and outputs a new
-data object. It uses scipy.signal.savgol_filter
-Args:
-    data_set (Data): The data set to be smoothed
-    x_range (float): The window length to use for the smoothing
-    polyorder (int): The order of polynomial to fit
-Returns:
-    A data object of smoothed data.
-"""
-    if (np.max(data_set.x) - np.min(data_set.x)) < x_window:
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+    elif (np.max(data.x) - np.min(data.x)) < x_window:
         raise ValueError(
-            "The loess window is longer than the given data range")
-    spacing = data_set.x[1] - data_set.x[0]
-    if not np.isclose(spacing, np.diff(data_set.x)).all():
-        raise ValueError('The data needs to be evenly spaced to smooth')
-    smooth_data = savgol_filter(data_set.y,
-                                2*int(round(0.5*x_window/spacing)) + 1,
-                                polyorder=polyorder)
-    return Data(data_set.x, smooth_data)
+            "The LOESS window is longer than the given data range")
+
+    spacing = data.x[1] - data.x[0]
+    if not np.isclose(spacing, np.diff(data.x)).all():
+        raise ValueError(
+            "The data needs to be evenly spaced to smooth.")
+
+    smooth_data = savgol_filter(data.y,
+        2*int(round(0.5*x_window/spacing)) + 1, 
+        polyorder=polyorder)
+    return Data(data.x, smooth_data)
 
 
-def poly_reg(data_set, polyorder):
+def poly_reg(data, polyorder):
+    """This applied a polynomial fit to data and returns the fit result.
+
+    This uses :func:`numpy.polyfit` and is used for subtracting polynomial 
+    background from data sets.
+
+    Parameters
+    ----------
+    data : Data
+        The data to apply the fit too.
+    polyorder : int
+        The order of the polynomial to use in the fit.
+
+    Returns
+    -------
+    poly_smoothed_data : Data
+        The polynomial which was the best fit to the data.
     """
-This performs a polynomial fit to the data to smooth it and outputs the
-smoothed data. It uses numpy.polyfit
-Args:
-    data_set (Data): The data set to be smoothed
-    polyorder (int): The order of the polynomial to fit
-Returns:
-    A data set of the fitted values
-"""
-    fit = np.polyfit(*data_set.both, deg=polyorder)
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+
+    fit = np.polyfit(*data.both, deg=polyorder)
     y_vals = 0.
     for n, p in enumerate(fit):
-        y_vals += p*np.power(data_set.x, polyorder-n)
-    return Data(data_set.x, y_vals)
+        y_vals += p*np.power(data.x, polyorder-n)
+
+    return Data(data.x, y_vals)
 
 
-def FFT(data_set, n=65536, window='hanning', freq_cut=0):
+def FFT(data, n=65536, window='hanning', freq_cut=0.):
+    """Performs an Fast Fourier Transform on the given data.
+
+    This assumes that the data is real, and the data provided needs to be 
+    evenly spaced. Makes use of :func:`numpy.fft.rfft`.
+
+    Parameters
+    ----------
+    data : Data
+        The data to be FFT. This must be evenly spaced in x.
+    n : int, optional
+        The number of points to make the FFT extra points will be zero 
+        padded. The default is ``2**16 = 65536``. If the data is longer 
+        than the value of n, n is rounded up to the next power of 2.
+    window : str, optional
+        The type of windowing function to use taken from 
+        :func:`scipy.signal.get_window`. The default is 'hanning'.
+    freq_cut : float, optional
+        The frequency to drop all the higher from. The default is 0 which 
+        means that all the frequencies are kept.
+
+    Returns
+    -------
+    fft_result : Data
+        A data object with the FFT frequencies in the x values and the 
+        amplitudes in the y values.
     """
-This performs an FFT on the data set and outputs another.
-Args:
-    data_set (Data): The data to perform the FFT on
-    n (int default:65536): The number of points to FFT, extra points
-        will be added with zero pading
-    window (str default:'hanning'): The windowing function to use the
-        list is given in scipy.signal.get_window
-    freq_cut (float default:0): If given the frequencies higher than this
-        are not included with the FFT
-Returns:
-    A data set of the resulting FFT
-"""
-    spacing = data_set.x[1] - data_set.x[0]
-    if not np.isclose(spacing,
-                      np.diff(data_set.x)).all():
-        raise ValueError('The data needs to be evenly spaced to smooth')
-    fft_vals = np.abs(np.fft.rfft(data_set.y*get_window(window,
-                                                        len(data_set)),
-                                  n=n))
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+
+    spacing = data.x[1] - data.x[0]
+    if not np.isclose(spacing, np.diff(data.x)).all():
+        raise ValueError(
+            "The data needs to be evenly spaced to FFT.")
+
+
+    window_func = get_window(window, len(data))
+
+    if n < len(data):
+        n = int(2**np.ceil(np.log2(len(data))))
+
+    data /= np.average(window_func)*len(data)/2  # Normalise the amplitude
+
+    fft_vals = np.abs(
+        np.fft.rfft(data.y*window_func, n=n))
     fft_freqs = np.fft.rfftfreq(n, d=spacing)
     freq_arg = None
     if freq_cut > 0:
         freq_arg = np.searchsorted(fft_freqs, freq_cut)
+
     return Data(fft_freqs[0:freq_arg], fft_vals[0:freq_arg])
 
 

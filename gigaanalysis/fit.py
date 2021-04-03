@@ -90,14 +90,14 @@ class Fit_result():
         return Data(x_vals, self.func(x_vals, *self.popt))
 
 
-def curve_fit(data_set, func, p0=None, full=True, **kwargs):
+def curve_fit(data, func, p0=None, full=True, **kwargs):
     """This is an implementation of :func:`scipy.optimize.curve_fit`
     for acting on :class:`gigaanalysis.data.Data` objects. This performs
     a least squares fit to the data of a function.
 
     Parameters
     ----------
-    data_set : Data
+    data : Data
         The data to perform the fit on.
     func : function
         The model function to fit. It must take the x values as
@@ -118,12 +118,17 @@ def curve_fit(data_set, func, p0=None, full=True, **kwargs):
     fit_result : gigaanalysis.fit.Fit_result
         A gigaanalysis Fit_result object containing the results
     """
-    popt, pcov = sp_curve_fit(func, data_set.x, data_set.y, p0=p0, **kwargs)
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+
+    popt, pcov = sp_curve_fit(func, data.x, data.y, p0=p0, **kwargs)
     if full:
-        results = Data(data_set.x, func(data_set.x, *popt))
-        residuals = data_set - results
+        results = Data(data.x, func(data.x, *popt))
+        residuals = data - results
     else:
         results, residuals = None, None
+
     return Fit_result(func, popt, pcov, results, residuals)
 
 
@@ -156,18 +161,18 @@ def any_poly(x_data, *p_vals, as_Data=False):
     for n, p in enumerate(p_vals[::-1]):
         results += p*np.power(x_data, n)
     if as_Data:
-        return ga.Data(x_data, results)
+        return Data(x_data, results)
     else:
         return results
 
-def poly_fit(data_set, order, full=True):
+def poly_fit(data, order, full=True):
     """This function fits a polynomial of a certain order to a given
     data set. It uses :func:`numpy.polyfit` for the fitting. The function
     which is to produce the data is :func:`gigaanalysis.fit.any_poly`.
 
     Parameters
     ----------
-    data_set : Data
+    data : Data
         The data set to perform the fit on.
     order : int
         The order of the polynomial.
@@ -182,11 +187,15 @@ def poly_fit(data_set, order, full=True):
         fit parameters are the coefficients of the polynomial. Follows the
         form of :func:`gigaanalysis.fit.any_poly`.
     """
-    popt, pcov = np.polyfit(data_set.x, data_set.y, order, cov=True)
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+
+    popt, pcov = np.polyfit(data.x, data.y, order, cov=True)
     func = any_poly
     if full:
-        results = Data(data_set.x, func(data_set.x, *popt))
-        residuals = data_set - results
+        results = Data(data.x, func(data.x, *popt))
+        residuals = data - results
     else:
         results, residuals = None, None
     return Fit_result(func, popt, pcov, results, residuals)
@@ -221,12 +230,12 @@ def make_sin(x_data, amp, wl, phase, offset, as_Data=False):
     """
     results = amp*np.sin(x_data*np.pi*2./wl + phase*np.pi/180.) + offset
     if as_Data:
-        return ga.Data(x_data, results)
+        return Data(x_data, results)
     else:
         return results
 
 
-def sin_fit(data_set, full=True):
+def sin_fit(data, full=True):
     """This function fits a polynomial of a certain order to a given
     data set. It uses :func:`numpy.polyfit` for the fitting. The function
     which is to produce the data is :func:`gigaanalysis.fit.any_poly`.
@@ -246,11 +255,16 @@ def sin_fit(data_set, full=True):
         fit parameters are the coefficients of the polynomial. Follows the
         form of :func:`gigaanalysis.fit.any_poly`.
     """
-    popt, pcov = np.polyfit(data_set.x, data_set.y, order, cov=True)
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+
+    popt, pcov = np.polyfit(data.x, data.y, order, cov=True)
     func = any_poly
     if full:
-        results = Data(data_set.x, func(data_set.x, *popt))
-        residuals = data_set - results
+        results = Data(data.x, func(data.x, *popt))
+        residuals = data - results
     else:
         results, residuals = None, None
+
     return Fit_result(func, popt, pcov, results, residuals)
