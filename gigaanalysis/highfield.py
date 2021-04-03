@@ -2,7 +2,6 @@
 
 This program has a series of useful tools for conducting experiments in
 certain high field labs.
-
 """
 
 from .data import *
@@ -11,52 +10,91 @@ from . import diglock
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-#import nptdms as tdms  # For read_ISSP
 from ipywidgets import interact, FloatSlider # For PulsedLockIn.find_phase
 from scipy.signal import savgol_filter  # For PulsedLockIn.lockin_Volt_smooth
+from scipy.interpolate import interp1d # For example_field
 
-'''
-Don't want nptdms
+def example_field(max_field, peak_time, length, sample_rate, as_Data=False):
+    """Produces a data set with a field profile.
 
-def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
-    """Takes data from TDMS file.
-    Requires group to be '名称未設定' which is untitled in Japanese.
-    Requires field to be labelled 'Field'
-    Makes use of :class:`nptdms.tdms`
+    This field profile matches the KS3 magnet in HLD. The pulse time and
+    maximum field has been normalised, and is get by the user. Originally 
+    they where 68.9 Tesla and 0.0336 seconds. I find this useful for 
+    simulating test measurements.
 
     Parameters
     ----------
-    file : str
-        The file name of the .tdms file with the data.
-    fieldCH : str
-        The name of the channel that contains the field. This as standard
-        is called 'Field'
-    current : str
-        The name of the channel the current is measured on.
-    voltage : str
-        The name of the channel the voltage is measured on.
-    group : str, optional
-        The name of the group of the the .tdms file. LabView as standard
-        makes this 'Untitled', but if the set language is something other
-        than English this will change. It can also be set by the user.
-    
+    max_field : float
+        The maximum field value that the data will reach.
+    peak_time : float
+        The time that the magnet reaches peak field.
+    length : int
+        The number of data points in the file.
+    sample_rate: float
+        The sample frequency of the data.
+    as_Data : bool, optional
+        If true a :class:`.Data` class is returned.
+
     Returns
     -------
-    Field : numpy.ndarray
-        1d numpy array with field values in
-    current : numpy.ndarray
-        1d numpy array with current readings
-    voltage : numpy.ndarray
-        1d numpy array with voltage readings
-
+    field_profile : numpy.ndarray or Data
+        The field values simulated for the parameters given.
     """
-    tdms_file = tdms.TdmsFile(file).as_dataframe()
-    return [x for x in tdms_file[["/'{}'/'{}'".format(group, fieldCH),
-                                     "/'{}'/'{}'".format(group, currentCH),
-                                     "/'{}'/'{}'".format(group, voltageCH)]
-                                     ].values.T]
-
-'''
+    field = np.array([
+        -0.000e+00,  0.000e+00,  4.660e-02,  9.440e-02,  1.376e-01,
+        1.785e-01,  2.182e-01,  2.569e-01,  2.949e-01,  3.322e-01,
+        3.687e-01,  4.046e-01,  4.397e-01,  4.740e-01,  5.076e-01,
+        5.402e-01,  5.719e-01,  6.027e-01,  6.326e-01,  6.614e-01,
+        6.892e-01,  7.160e-01,  7.416e-01,  7.662e-01,  7.896e-01,
+        8.118e-01,  8.328e-01,  8.527e-01,  8.713e-01,  8.887e-01,
+        9.048e-01,  9.197e-01,  9.333e-01,  9.456e-01,  9.567e-01,
+        9.665e-01,  9.750e-01,  9.823e-01,  9.883e-01,  9.931e-01,
+        9.966e-01,  9.989e-01,  9.999e-01,  9.998e-01,  9.984e-01,
+        9.958e-01,  9.920e-01,  9.871e-01,  9.810e-01,  9.738e-01,
+        9.655e-01,  9.561e-01,  9.457e-01,  9.343e-01,  9.221e-01,
+        9.091e-01,  8.954e-01,  8.810e-01,  8.660e-01,  8.505e-01,
+        8.345e-01,  8.180e-01,  8.012e-01,  7.840e-01,  7.666e-01,
+        7.490e-01,  7.311e-01,  7.131e-01,  6.950e-01,  6.769e-01,
+        6.587e-01,  6.405e-01,  6.223e-01,  6.042e-01,  5.862e-01,
+        5.683e-01,  5.505e-01,  5.329e-01,  5.154e-01,  4.982e-01,
+        4.812e-01,  4.644e-01,  4.479e-01,  4.316e-01,  4.156e-01,
+        3.999e-01,  3.845e-01,  3.693e-01,  3.545e-01,  3.400e-01,
+        3.259e-01,  3.120e-01,  2.985e-01,  2.854e-01,  2.725e-01,
+        2.600e-01,  2.479e-01,  2.360e-01,  2.245e-01,  2.134e-01,
+        2.026e-01,  1.921e-01,  1.819e-01,  1.721e-01,  1.626e-01,
+        1.534e-01,  1.445e-01,  1.360e-01,  1.277e-01,  1.197e-01,
+        1.121e-01,  1.047e-01,  9.760e-02,  9.080e-02,  8.430e-02,
+        7.800e-02,  7.200e-02,  6.620e-02,  6.070e-02,  5.550e-02,
+        5.040e-02,  4.560e-02,  4.110e-02,  3.670e-02,  3.260e-02,
+        2.860e-02,  2.490e-02,  2.140e-02,  1.800e-02,  1.480e-02,
+        1.180e-02,  9.000e-03,  6.300e-03,  3.800e-03,  1.400e-03,
+        -8.000e-04, -2.900e-03, -4.800e-03, -6.600e-03, -8.300e-03,
+        -9.800e-03, -1.130e-02, -1.260e-02, -1.390e-02, -1.500e-02,
+        -1.600e-02, -1.700e-02, -1.790e-02, -1.860e-02, -1.930e-02,
+        -2.000e-02, -2.050e-02, -2.100e-02, -2.140e-02, -2.180e-02,
+        -2.210e-02, -2.230e-02, -2.250e-02, -2.260e-02, -2.270e-02,
+        -2.280e-02, -2.280e-02, -2.280e-02, -2.270e-02, -2.260e-02,
+        -2.250e-02, -2.230e-02, -2.210e-02, -2.190e-02, -2.170e-02,
+        -2.140e-02, -2.120e-02, -2.090e-02, -2.060e-02, -2.020e-02,
+        -1.990e-02, -1.950e-02, -1.910e-02, -1.870e-02, -1.830e-02,
+        -1.790e-02, -1.740e-02, -1.700e-02, -1.650e-02, -1.600e-02,
+        -1.550e-02, -1.500e-02, -1.450e-02, -1.400e-02, -1.340e-02,
+        -1.290e-02, -1.230e-02, -1.180e-02, -1.120e-02, -1.070e-02,
+        -1.010e-02, -9.500e-03, -8.900e-03, -8.400e-03, -7.800e-03,
+        -7.200e-03, -6.600e-03, -6.000e-03, -5.400e-03, -4.900e-03,
+        -4.300e-03, -3.700e-03, -3.100e-03, -2.600e-03, -2.000e-03,
+        -1.500e-03, -9.000e-04, -4.000e-04, -2.000e-04, -2.000e-04,
+        -1.000e-04, -1.000e-04, -1.000e-04, -0.000e+00, -0.000e+00,
+        -0.000e+00, -0.000e+00, -0.000e+00, -0.000e+00, -0.000e+00,])
+    time = np.arange(225)/42.
+    field_interp = interp1d(peak_time*time, max_field*field, 
+        kind='linear', fill_value=0, bounds_error=False, assume_sorted=True)
+    sim_time = np.arange(length)/sample_rate
+    sim_field = field_interp(sim_time)
+    if as_Data:
+        return Data(sim_time, sim_field)
+    else:
+        return sim_field
 
 
 def PUtoB(PU_signal, field_factor, fit_points, to_fit='PU'):
@@ -182,26 +220,26 @@ class PulsedLockIn():
     def lockin_Volt(self, time_const, phase_shift=None):
         """
         This preforms a lock in process on the measurement signal.
-        This uses :func:gigaanalysis.diglock.ham_lock_in
+        This uses :func:`.diglock.ham_lock_in`.
         
         Parameters
         ----------
-            time_const : float
-                Time for averaging in seconds
-            phase_shift : float
-                Phase difference between the current voltage
-                and the measurement voltage
+        time_const : float
+            Time for averaging in seconds
+        phase_shift : float
+            Phase difference between the current voltage
+            and the measurement voltage
 
         Attributes
         ----------
-            As well as the inputs being stored as attributes the following
-            are made
-            loc_Volt : 1d np.array
-                Measurement voltage after lock in
-                process corrected for preamp amplitude in Volts rms
-            loc_Volt_out : 1d numpy.ndarray
-                Measurement voltage after lock in the same as
-                `loc_Volt` but with the out of phase signal
+        As well as the inputs being stored as attributes the following
+        are made
+        loc_Volt : 1d np.array
+            Measurement voltage after lock in
+            process corrected for preamp amplitude in Volts rms
+        loc_Volt_out : 1d numpy.ndarray
+            Measurement voltage after lock in the same as
+            `loc_Volt` but with the out of phase signal
         """
         self.time_const = time_const
         if phase_shift != None:
@@ -216,7 +254,7 @@ class PulsedLockIn():
     def lockin_current(self, time_const, phase=0,):
         """
         This preforms a lock in process on the measurement signal.
-        This uses :func:gigaanalysis.diglock.ham_lock_in
+        This uses :func:`.diglock.ham_lock_in`.
         
         Parameters
         ----------
@@ -238,7 +276,7 @@ class PulsedLockIn():
         """
         This preforms a lock in process on the measurement signal, it then
         performs a light smoothing to remove aliasing.
-        This uses :func:gigaanalysis.diglock.ham_lock_in
+        This uses :func:`.diglock.ham_lock_in`.
         The smoothing is done with a pass of a Savitzky-Golay filter from
         :func:`scipy.signal.savgol_filter`.
         
@@ -286,8 +324,8 @@ class PulsedLockIn():
         """
         This finds the phase which makes the out of phase a flat as possible
         and also has the in phase be majority positive.
-        Uses :func:`gigaanalysis.diglock.ham_lock_in` and
-        :func:`gigaanalysis.diglock.phase_in`
+        Uses :func:`.diglock.ham_lock_in` and
+        :func:`.diglock.phase_in`
         
         Args:
             time_const (float): The time constant to be used to average by
@@ -353,7 +391,7 @@ class PulsedLockIn():
         """
         This preforms a lock in process on the measurement signal. With the
         aim of removing spikes in the raw first.
-        This uses :func:gigaanalysis.diglock.spike_lock_in
+        This uses :func:`.diglock.spike_lock_in`.
         
         Parameters
         ----------

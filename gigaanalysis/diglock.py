@@ -88,7 +88,7 @@ def find_freq(data, samp_freq,
     n_fft = round(padding*len(windowed))
     fft = abs(rfft(windowed, n=n_fft))
 
-    peak_freq, preak_amp = polypeak(
+    peak_freq, peak_amp = polypeak(
         fft[skip_start:], fit_point=fit_point)
     peak_freq = samp_freq*(peak_freq+skip_start)/n_fft
 

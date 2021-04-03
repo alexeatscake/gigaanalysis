@@ -1,5 +1,8 @@
-"""Giga Analysis - Magnetism
+"""GigaAnalysis - Magnetism
 
+Here are a few functions for equations that are useful for magnetism 
+science. They can be made to produce a Data object or just a 
+:class:`numpy.ndarray`. This works well with the fitting module.
 """
 
 from .data import *
@@ -37,7 +40,7 @@ def brillouin_function(fields, n_ion, g, j, temp, as_Data=False):
 
     Returns
     -------
-    Magnetisation : numpy.ndarray, gigaanalysis.data.Data
+    Magnetisation : numpy.ndarray, Data
         The magnetisation produced in units of J/T.
     """
     x = np.array(g*const.muB()*fields/temp/const.kb())
@@ -75,7 +78,7 @@ def langevin_function(fields, n_ion, g, temp, as_Data=False):
 
     Returns
     -------
-    Magnetisation : numpy.ndarray, gigaanalysis.data.Data
+    Magnetisation : numpy.ndarray, Data
         The magnetisation produced in units of J/T
     """
     x = np.array(g*const.muB()*fields/temp/const.kb())

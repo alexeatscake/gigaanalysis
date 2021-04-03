@@ -1,5 +1,8 @@
-"""Giga Analysis - Heat Capacity
+"""GigaAnalysis - Heat Capacity
 
+Here are a few functions for equations that are useful for heat capacity 
+measurements. They can be made to produce a Data object or just a 
+:class:`numpy.ndarray`. This works well with the fitting module.
 """
 
 from .data import *
@@ -31,7 +34,7 @@ def schottky_anomaly(temps, num, gap, as_Data=False):
 
     Returns
     -------
-    Heat Capacity : numpy.ndarray, gigaanalysis.data.Data
+    Heat Capacity : numpy.ndarray, Data
         The heat capacity in units of J/K/mol.
     """
     if not isinstance(temps, np.ndarray):
