@@ -472,6 +472,9 @@ class Data():
         bounds_error : bool, optional
             If an error should thrown in x value is out of range, 
             default True.
+        kind : str or int, optional
+            The type of interpolation to use. Passed to 
+            :func:`scipy.interpolate.interp1d`, default is `linear`.
         
         Returns
         -------
@@ -561,6 +564,10 @@ class Data():
         shift_step: bool, optional
             If the `min_x` value should be rounded to the next whole step. 
             The default is True.
+        kind : str or int, optional
+            The type of interpolation to use. Passed to 
+            :func:`scipy.interpolate.interp1d`, default is `linear`.
+
         
         Returns
         -------
@@ -605,6 +612,9 @@ class Data():
         shift_step: bool, optional
             If the `min_x` value should be rounded to the next whole step. 
             The default is True.
+        kind : str or int, optional
+            The type of interpolation to use. Passed to 
+            :func:`scipy.interpolate.interp1d`, default is `linear`.
         
         Returns
         -------
@@ -624,6 +634,9 @@ class Data():
         ----------
         num_points : int
             The number of points to interpolate.
+        kind : str or int, optional
+            The type of interpolation to use. Passed to 
+            :func:`scipy.interpolate.interp1d`, default is `linear`.
         
         Returns
         -------
@@ -668,7 +681,7 @@ class Data():
             bounds_error=False, fill_value=(min_y, max_y))(x_vals)
         return Data(x_vals, y_vals)
 
-    def to_even(self, step_size, shift_step=True):
+    def to_even(self, step_size, shift_step=True, kind='linear'):
         """Evenly interpolates the data and updates the data object.
 
         This uses :meth:`Data.interp_range` specifying `step_size` and 
@@ -684,6 +697,9 @@ class Data():
         shift_step: bool, optional
             If the `min_x` value should be rounded to the next whole step. 
             The default is True.
+        kind : str or int, optional
+            The type of interpolation to use. Passed to 
+            :func:`scipy.interpolate.interp1d`, default is `linear`.
         """
         self.__init__(self.interp_range(self.min_x(), self.max_x(),
             step_size=step_size, shift_step=shift_step,
@@ -1298,7 +1314,7 @@ def load_dict(file_name, name_space='/',
     return data_dict
 
 
-def gen_rand(n, func=None, seed=None):
+def gen_rand(n, func=None, seed=None, interp_full=None):
     """Produces Data object with random values.
 
     This uses :meth:`numpy.random.Generator.random` to produce a
@@ -1314,6 +1330,9 @@ def gen_rand(n, func=None, seed=None):
         A function with one parameter to transform the y values.
     seed : float
         Seed to be passed to :func:`numpy.random.default_rng`
+    interp_full : float, optional
+        If given the data is evenly interpolated, passed to :class:`Data`. 
+        The default is `None` which doesn't interpolate the data.
 
     Returns
     -------
@@ -1321,15 +1340,18 @@ def gen_rand(n, func=None, seed=None):
         The generated data object. 
     """
     if not isinstance(n, (int, np.int_)):
-        raise TypeError("n needs to be an int")
+        raise TypeError(
+            f"n needs to be an int, but was a {type(n)}")
     elif n < 1:
-        raise ValueError("n need to be a positive integer")
-    if not func:
-        return Data(
-            np.cumsum(np.random.default_rng(seed).random((n, 2)),
-                axis=0))
-    else:
-        return Data(
-            np.cumsum(np.random.default_rng(seed).random((n, 2)),
-                axis=0)).apply_y(func)
+        raise ValueError(
+            f"n need to be a positive integer, but was {n}")
+
+    gen_data = Data(
+        np.cumsum(np.random.default_rng(seed).random((n, 2)), axis=0),
+        interp_full=interp_full)
+
+    if func:
+        gen_data = gen_data.apply_y(func)
+
+    return gen_data
 
