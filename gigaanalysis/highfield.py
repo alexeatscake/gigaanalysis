@@ -1,4 +1,5 @@
-"""GigaAnalysis - High Field
+"""GigaAnalysis - High Field - :mod:`gigaanalysis.highfield`
+---------------------------------------------------------------
 
 This program has a series of useful tools for conducting experiments in
 certain high field labs.

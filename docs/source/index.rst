@@ -13,7 +13,7 @@ assembling many of these measurements.
    :caption: Contents:
 
    intro
-   gigaanalysis
+   API
 
 
 Indices and tables

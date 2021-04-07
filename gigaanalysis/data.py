@@ -1,8 +1,17 @@
 
-"""GigaAnalysis - Data Type
+"""GigaAnalysis - Data Type - :mod:`gigaanalysis.data`
+--------------------------------------------------------
 
-This holds the data class and the functions that will manipulate them.
+This one module is imported directly into the :mod:`gigaanalysis` namespace,
+so that the classes and functions here can be accessed directly.
 
+This holds the :class:`Data` class and the functions that will manipulate 
+them. This forms the backbone of the rest of the GigaAnalysis. The point of 
+the :class:`Data` object is to hold sweeps. These are data sets with one 
+independent and one dependant variable, which are super common in 
+experimental physics research. By assuming the data is of this type more 
+assumptions and error checking can be facilitated, and this is what 
+GigaAnalysis aims to take advantage of.
 """
 
 import numpy as np

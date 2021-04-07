@@ -1,4 +1,5 @@
-"""GigaAnalysis - Magnetism
+"""GigaAnalysis - Magnetism - :mod:`gigaanalysis.magnetism`
+--------------------------------------------------------------
 
 Here are a few functions for equations that are useful for magnetism 
 science. They can be made to produce a Data object or just a 

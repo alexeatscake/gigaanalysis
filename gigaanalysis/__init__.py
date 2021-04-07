@@ -1,4 +1,5 @@
-"""GigaAnalysis
+"""GigaAnalysis - :mod:`gigaanalysis`
+----------------------------------------
 
 This is made for processing sweep data from physics experiments.
 

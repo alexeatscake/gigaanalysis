@@ -1,4 +1,5 @@
-"""GigaAnalysis - Data Set Management
+"""GigaAnalysis - Data Set Management - :mod:`gigaanalysis.dset`
+-------------------------------------------------------------------
 
 This module has functions to save nested dictionaries with :class:`Data` 
 objects as the values. It provides the functionality to save and read from 

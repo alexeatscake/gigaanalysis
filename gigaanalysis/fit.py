@@ -1,4 +1,5 @@
-"""GigaAnalysis - Fitting
+"""GigaAnalysis - Fitting - :mod:`gigaanalysis.fit`
+------------------------------------------------------
 
 This module contains the :class:`Fit_result` class which is used for fitting 
 functions to the GigaAnalysis Data objects. It also contains some common 

@@ -1,5 +1,10 @@
-"""GigaAnalysis - Parsing
+"""GigaAnalysis - Parsing - :mod:`gigaanalysis.parse`
+--------------------------------------------------------
 
+This module contains functions for parsing data sets. Now it includes 
+functions for identifying measurements clustered in groups and taking the 
+average of them. This can be useful for plotting datasets from instruments 
+that take multiple measurements at each point in a sweep.
 """
 
 from .data import *

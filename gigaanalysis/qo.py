@@ -1,4 +1,5 @@
-"""GigaAnalysis - Quantum Oscillations
+"""GigaAnalysis - Quantum Oscillations - :mod:`gigaanalysis.qo`
+------------------------------------------------------------------
 
 Here is a set of functions and classes that are useful for analysing 
 quantum oscillation data. The general form that I assume when processing 

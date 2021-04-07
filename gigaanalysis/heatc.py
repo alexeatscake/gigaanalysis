@@ -1,4 +1,5 @@
-"""GigaAnalysis - Heat Capacity
+"""GigaAnalysis - Heat Capacity - :mod:`gigaanalysis.heatc`
+--------------------------------------------------------------
 
 Here are a few functions for equations that are useful for heat capacity 
 measurements. They can be made to produce a Data object or just a 

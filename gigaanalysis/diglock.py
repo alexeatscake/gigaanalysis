@@ -1,4 +1,5 @@
-"""GigaAnalysis - Digital Lock In
+"""GigaAnalysis - Digital Lock In - :mod:`gigaanalysis.diglock`
+------------------------------------------------------------------
 
 This program is to recreate what a lock in would do for slower measurements
 but for our high field experiments. This is based around what the program in 

@@ -1,9 +1,12 @@
-"""Giga Analysis - Constants
+"""GigaAnalysis - Constants - :mod:`gigaanalysis.const`
+----------------------------------------------------------
 
 Here is contained a collection of functions with when called return values 
 of physical constants. They always return floats and all have one optional 
 parameter 'unit' which default is 'SI' for the International System of Units 
 values for these parameters.
+The module :mod:`scipy.constants` contains many more than what is listed 
+here, but I included these for the different units.
 """
 
 from .data import *
