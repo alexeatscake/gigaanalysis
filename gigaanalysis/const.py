@@ -337,14 +337,14 @@ def mp(unit='SI'):
     """`Proton rest mass 
     <https://en.wikipedia.org/wiki/Proton>`_
 
-    =====  =====
-    Unit   Value
-    =====  =====
+    ======  =====
+    Unit    Value
+    ======  =====
     'SI'    1.67262192369e-27 kg
     'CGS'   1.67262192369e-25 g
     'MeVc'  9.3827208816e+2 MeV/c^2
     'uamu'  1.007276466621e+0 Da
-    =====  =====
+    ======  =====
 
     Parameters
     ----------

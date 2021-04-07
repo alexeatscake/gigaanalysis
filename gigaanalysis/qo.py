@@ -1,5 +1,9 @@
-"""Giga Analysis - Quantum Oscillations
+"""GigaAnalysis - Quantum Oscillations
 
+Here is a set of functions and classes that are useful for analysing 
+quantum oscillation data. The general form that I assume when processing 
+magnetic field sweeps to look for quantum oscillation are performing a 
+background subtraction and then Fourier transforming that inverse field.
 """
 
 from .data import *
@@ -370,6 +374,7 @@ class QO():
         self.raw = data
         self.min_field = min_field
         self.max_field = max_field
+        self._bg_sub_func = subtract_func
 
         if np.min(self.raw.x) > min_field:
             raise ValueError(
@@ -498,7 +503,7 @@ class QO():
             not one of '.csv', '.txt', or '.dat'; then '.csv' will be 
             appended on to the end of the name.
         sep : str, optional
-            The character used to the delimitate between the data, the 
+            The character used to the delineate between the data, the 
             default is ','.
         """
         if file_name[-4:] not in ['.csv', '.txt', '.dat']:
@@ -521,11 +526,200 @@ class QO():
                    header=header_line)
 
 
+class QO_av(QO):
+    """Average Quantum Oscillation Class
+
+    This class applies a similar process to a set of sweeps in a list as 
+    the :class:`QO` class. For each sweep the background in individually 
+    subtracted. They are then averaged to produce the FFT. The attributes 
+    for this class are also :class:`.Data` objects and these are the average 
+    of all the separately interpolated and subtracted sweeps.
+
+    This class is useful as the average of a collection of background 
+    subtractions are not necessarily the same as the subtract of their 
+    average.
+
+    One important point with this class is that the :attr:`raw` will be 
+    the given list as opposed to the average of this list. For the average 
+    it is best to use the :attr:`interp` attribute. The step_size if not 
+    given will also use the smallest of the generated step sizes form the 
+    list of raw sweeps.
+    
+    Parameters
+    ----------
+    data : list
+        A list of raw data of the field sweep in the form of a 
+        list of :class:`.Data` objects to look for quantum oscillations in.
+    min_field : float
+        The lowest field value of the field range to inspect.
+    max_field : float
+        The highest field value of the field range to inspect.
+    subtract_func : calculable
+        This should take one :class:`.Data` object and return one 
+        :class:`.Data` of the same length. The input data is the 
+        interpolated sweep, and the output should be the data after the 
+        background has been subtracted.
+    step_size : float, optional
+        The size of field steps to interpolate. The default is 4 times the 
+        average step size in the raw data.
+    fft_cut : float, optional
+        The maximum frequency to consider in FFT, higher frequencies are 
+        dropped. THe default is to keep all the data.
+    strip_nan : bool, optional
+        If `True` non finite values are removed from the raw data. The 
+        default is `False` and this will raise an error is non finite values 
+        are in the raw data.
+
+    Attributes
+    ----------
+    raw : list
+        The list of data originally given to the class.
+    interp : Data
+        The average of the sweeps cut to the field range and interpolated.
+    sub : Data
+        The average of the sweeps after the background subtraction.
+    invert : Data
+        The average of the subtracted sweeps after inverting the field 
+        values.
+    fft : Data
+        The Fourier transform of the inverted average signal.
+    min_field : float
+        The minimum field in the range in consideration.
+    max_field : float
+        The maximum field in the range in consideration.
+    step_size : float
+        The steps in field calculated in the interpolation.
+    """
+    def __init__(self, data_list, min_field, max_field, subtract_func,
+            step_size=None, fft_cut=0, strip_nan=False):
+        if type(data_list) != list:
+            raise TypeError(
+                f"data_list was not in the form of a list. "
+                f"It was instead of the type {type(data_list)}.")
+        self.raw = []
+        raw_steps = []
+        for n, raw_sweep in enumerate(data_list):
+            if type(raw_sweep) != Data:
+                try:
+                    self.raw.append(Data(raw_sweep))
+                except:
+                    raise TypeError(
+                        f"data in list positions {n} was not a Data object "
+                        f"nor could it be cast to one. It was of the "
+                        f"type {type(raw_sweep)}.")
+            else:
+                self.raw.append(raw_sweep)
+
+            if np.min(raw_sweep.x) > min_field:
+                raise ValueError(
+                    f"max_field value to interpolate is below data."
+                    f"Was was seen in data number {n}")
+            if np.max(raw_sweep.x) < max_field:
+                raise ValueError(
+                    f"max_field value to interpolate is above data"
+                    f"Was was seen in data number {n}")
+
+            if strip_nan:
+                self.raw[n] = raw_sweep.strip_nan()
+            else:
+                if not np.all(np.isfinite(raw_sweep)):
+                    raise ValueError(
+                        f"The data contained non finite values and "
+                        f"strip_nan was set to False."
+                        f"Was was seen in data number {n}")
+
+            if step_size == None:
+                raw_steps.append(
+                    (raw_sweep.max_x() - raw_sweep.min_x()
+                    )/len(raw_sweep)/4)
+        
+        self.min_field = min_field
+        self.max_field = max_field
+        self._bg_sub_func = subtract_func
+  
+        if step_size == None:
+            self.step_size = np.min(raw_steps)
+        else:
+            self.step_size = step_size
+        
+        interp_list = []
+        for data in self.raw:
+            interp_list.append(data.interp_range(
+                min_field, max_field, self.step_size))
+
+        sub_list = []
+        for interp in interp_list:
+            sub_list.append(subtract_func(interp))
+
+        self.interp = mean(interp_list)
+        self.sub = mean(sub_list)
+        self.invert = invert_x(self.sub)
+        self.fft = FFT(self.invert, freq_cut=fft_cut)
+
+    def __repr__(self):
+        return  (
+            f"Average Quantum Oscillation object:\n"
+            f"Number of sweeps averaged {len(self.raw)}\n"
+            f"Field Range {self.min_field:.2f} T to {self.max_field:.2f} T\n"
+            f"Number of points {self.interp.x.size}")
+
+    def make_QO(self, raw_num, 
+            step_size=None, fft_cut=None, strip_nan=False):
+        """Make a Quantum Oscillation object form a certain sweep.
+
+        This return a new quantum oscillation object from a particular 
+        sweep in the raw list given. This will use the same field range 
+        and background subtraction as used in this class.
+
+        Parameters
+        ----------
+        raw_num : int 
+            The number of the sweep to pass to :class:`QO`. Like all python 
+            lists the counting starts at 0.
+        step_size : float, optional
+            If given this will be the step size used. If not given the 
+            step_size in the original class is used.
+        fft_cut : float, optional
+            If given this will be the FFT cut to used. If not given the 
+            fft_cut in the original class is used. To see the full range of 
+            frequencies set the fft_cut to 0.
+        strip_nan : bool, optional
+            This does nothing as in order to make this class there cannot be 
+            any NaNs left in the raw data. It is included for completeness.
+
+        Returns
+        -------
+        single_QO : QO
+            A quantum oscillation object with the same parameters as used in 
+            this class but only the data from one of the sweeps.
+        """
+        if not isinstance(raw_num, (int, np.int_)):
+            raise TypeError(
+                    f"raw_num needs to be a int but is of type "
+                    f"{type(raw_num)}")
+        elif np.abs(raw_num) >= len(self.raw):
+            raise ValueError(
+                f"The raw_num is out of range. It was {raw_num} but there "
+                f"are only {len(self.raw)} sweeps in the raw data.")
+
+        if step_size != None:
+            to_step = step_size
+        else:
+            to_step = self.step_size
+
+        if fft_cut == None:
+            fft_cut = self.fft.x[-1]
+
+        return QO(self.raw[raw_num], self.min_field, self.max_field,
+            self._bg_sub_func, 
+            step_size=to_step, fft_cut=fft_cut, strip_nan=strip_nan)
+
+
 class QO_loess(QO):
-    """Quantum Ossilation object with LOESS subtraction
+    """Quantum Oscillation object with LOESS subtraction
 
     This is a example of the :class:`QO` which the subtraction using 
-    :func:`loess`. The form is the name but with the initialising function 
+    :func:`loess`. The form is the same but with the initialising function 
     takes the arguments to define the LOESS background subtraction.
 
     Parameters
@@ -554,7 +748,7 @@ class QO_loess(QO):
     Attributes
     ----------
     :
-        This class has the same attributes as the :class:`QO` calss but also 
+        This class has the same attributes as the :class:`QO` class but also 
         with the information about the LOESS subtraction.
 
     loess_win : float
@@ -562,34 +756,6 @@ class QO_loess(QO):
     loess_poly : int
         The order of the polynomial to use for the LOESS subtraction.
     """
-    """
-This class is designed to keep all the information for one sweep together
-The data given needs to be a ga.Data class or objects that can be passed
-to make one.
-
-This class is a subclass of ga.QO
-This class is using LOESS background fitting to perform the subtraction. 
-
-The first set of attributes are the same as the parameters passed to the
-class in initialisation. The remaining are mostly ga.Data objects that 
-are produced in the steps of analysis the quantum oscillations.
-
-Attributes:
-    raw (ga.Data): Original data passed to the class
-    min_field (float): The minimum field to be considered
-    max_field (float): The maximum field to be considered
-    loess_win (float): The window length to be passed to ga.loess
-    loess_poly (float): The polynomial order to be
-        passed to ga.loess_poly
-    step_size (float): The spacing between the field points to
-        be interpolated
-    interp (ga.Data): The sweep cut to the field range and interpolated
-        evenly in field
-    sub (ga.Data): The sweep with the background subtracted
-    invert (ga.Data): The background subtracted sweep evenly interpolated
-        in inverse field
-    fft (ga.Data): The flourier transform of the inverse
-"""
     def __init__(self, data, min_field, max_field, loess_win, loess_poly,
                 step_size=None, fft_cut=0, strip_nan=False):
 
@@ -602,95 +768,196 @@ Attributes:
         self.loess_win = loess_win
         self.loess_poly = loess_poly
 
-
-    def __dir__(self):
-        return [*QO.__dir__(self), 'loess_poly', 'loess_win']
-
-
-    def _repr_html_(self):
-        return print('Quantum Oscillation object:\n' \
-                     'LOESS Background Subtraction\n' \
-                     'Field Range {:.2f} to  {:.2f} \n' \
-                     'LOESS polynomial {:.2f}\n' \
-                     'LOESS window {:.2f}\n'.format(
-                        self.min_field, self.max_field,
-                        self.loess_poly, self.loess_win))
+    def __repr__(self):
+        return  (
+            f"Quantum Oscillation object:\n"
+            f"LOESS Background Subtraction\n"
+            f"Field Range {self.min_field:.2f} T to {self.max_field:.2f} T\n"
+            f"Number of points {self.interp.x.size}\n"
+            f"LOESS window {self.loess_win:.2f} T\n"
+            f"LOESS polynomial {self.loess_poly}")
 
 
-class QO_loess_av(QO_loess):
+class QO_loess_av(QO_av):
+    """Average Quantum Oscillation object with LOESS subtraction
+
+    This is a example of the :class:`QO_av` which the subtraction using 
+    :func:`loess`. The form is the same but with the initialising function 
+    takes the arguments to define the LOESS background subtraction.
+
+    Parameters
+    ----------
+    data : list
+        A list of raw data of the field sweep in the form of a 
+        list of :class:`.Data` objects to look for quantum oscillations in.
+    min_field : float
+        The lowest field value of the field range to inspect.
+    max_field : float
+        The highest field value of the field range to inspect.
+    loess_win : float
+        The length of the window in Tesla to use for the LOESS subtraction.
+    loess_poly : int
+        The order of the polynomial to use for the LOESS subtraction.
+    step_size : float, optional
+        The size of field steps to interpolate. The default is 4 times the 
+        average step size in the raw data.
+    fft_cut : float, optional
+        The maximum frequency to consider in FFT, higher frequencies are 
+        dropped. THe default is to keep all the data.
+    strip_nan : bool, optional
+        If `True` non finite values are removed from the raw data. The 
+        default is `False` and this will raise an error is non finite values 
+        are in the raw data.
+
+    Attributes
+    ----------
+    :
+        This class has the same attributes as the :class:`QO` class but also 
+        with the information about the LOESS subtraction.
+
+    loess_win : float
+        The length of the window in Tesla to use for the LOESS subtraction.
+    loess_poly : int
+        The order of the polynomial to use for the LOESS subtraction.
     """
-This class is designed to keep all the information for one sweep together
-The data given needs to be a ga.Data class or objects that can be passed
-to make one.
+    def __init__(self, data_list, min_field, max_field, 
+            loess_win, loess_poly,
+            step_size=None, fft_cut=0, strip_nan=False):
 
-This class is a subclass of ga.QO_loess
-This class is using LOESS background fitting to perform the subtraction.
-
-The first set of attributes are the same as the parameters passed to the
-class in initialisation. The remaining are mostly ga.Data objects that 
-are produced in the steps of analysis the quantum oscillations.
-
-Attributes:
-    raw ([ga.Data]): Original data passed to the class in the from of a list
-        of ga.Data objects
-    min_field (float): The minimum field to be considered
-    max_field (float): The maximum field to be considered
-    loess_win (float): The window length to be passed to ga.loess
-    loess_poly (float): The polynomial order to be
-        passed to ga.loess_poly
-    step_size (float): The spacing between the field points to
-        be interpolated
-    interp (ga.Data): The sweep cut to the field range and interpolated
-        evenly in field
-    sub (ga.Data): The sweep with the background subtracted
-    invert (ga.Data): The background subtracted sweep evenly interpolated
-        in inverse field
-    fft (ga.Data): The flourier transform of the inverse
-"""
-    def __init__(self, data_list, min_field, max_field, loess_win,
-            loess_poly, step_size=None, fft_cut=0):
-        if type(data_list) != list:
-            raise TypeError('Not given a list of ga.Data class\n' \
-                            'Was given {}'.format(type(data_list)))
-        self.raw = []
-        for data in data_list:
-            if type(data) != Data:
-                try:
-                    self.raw.append(Data(data))
-                except:
-                    raise TypeError('Not given data class in list!\n' \
-                                    'Was given {}'.format(type(data)))
-            else:
-                self.raw.append(data)
-        
-        self.min_field = min_field
-        self.max_field = max_field
-        self.loess_win = loess_win
-        self.loess_poly = loess_poly
-        
-        if step_size == None:
-            self.step_size = np.min(
-                [np.abs(np.average(np.diff(data.x)))/4 for data in self.raw])
-        else:
-            self.step_size = step_size
-        
-        interp_list = []
-        for data in self.raw:
-            interp_list.append(data.interp_range(min_field, max_field,
-                                                    self.step_size))
         def bg_sub(interp):
             return interp - loess(interp, loess_win, loess_poly)
 
-        sub_list = []
-        for interp in interp_list:
-            sub_list.append(bg_sub(interp))
+        QO_av.__init__(self, data_list, min_field, max_field, bg_sub,
+            step_size=step_size, fft_cut=fft_cut, strip_nan=strip_nan)
 
-        self.interp = mean(interp_list)
-        self.sub = mean(sub_list)
-        self.invert = invert_x(self.sub)
-        self.fft = FFT(self.invert, freq_cut=fft_cut)
+        self.loess_win = loess_win
+        self.loess_poly = loess_poly
+
+    def __repr__(self):
+        return (
+            f"Average Quantum Oscillation object:\n"
+            f"LOESS Background Subtraction\n"
+            f"Number of sweeps averaged {len(self.raw)}\n"
+            f"Field Range {self.min_field:.2f} T to {self.max_field:.2f} T\n"
+            f"Number of points {self.interp.x.size}\n"
+            f"LOESS window {self.loess_win:.2f} T\n"
+            f"LOESS polynomial {self.loess_poly}")
 
 
+class QO_poly(QO):
+    """Quantum Oscillation object with polynomial subtraction
+
+    This is a example of the :class:`QO` which the subtraction using 
+    :func:`poly_reg`. The form is the same but with the initialising function 
+    takes the arguments to define the polynomial background subtraction.
+
+    Parameters
+    ----------
+    data : Data
+        The raw data of the field sweep to look for quantum oscillations in.
+    min_field : float
+        The lowest field value of the field range to inspect.
+    max_field : float
+        The highest field value of the field range to inspect.
+    poly_order : int
+        The order of the polynomial to use for the subtraction.
+    step_size : float, optional
+        The size of field steps to interpolate. The default is 4 times the 
+        average step size in the raw data.
+    fft_cut : float, optional
+        The maximum frequency to consider in FFT, higher frequencies are 
+        dropped. THe default is to keep all the data.
+    strip_nan : bool, optional
+        If `True` non finite values are removed from the raw data. The 
+        default is `False` and this will raise an error is non finite values 
+        are in the raw data.
+
+    Attributes
+    ----------
+    :
+        This class has the same attributes as the :class:`QO` class but also 
+        with the information about the polynomial subtraction.
+
+    poly_order : int
+        The order of the polynomial to use for the subtraction.
+    """
+    def __init__(self, data, min_field, max_field, poly_order,
+                step_size=None, fft_cut=0, strip_nan=False):
+
+        def bg_sub(interp):
+            return interp - poly_reg(interp, poly_order)
+
+        QO.__init__(self, data, min_field, max_field, bg_sub,
+            step_size=step_size, fft_cut=fft_cut, strip_nan=strip_nan)
+
+        self.poly_order = poly_order
+
+    def __repr__(self):
+        return  (
+            f"Quantum Oscillation object:\n"
+            f"Polynomial Background Subtraction\n"
+            f"Field Range {self.min_field:.2f} T to {self.max_field:.2f} T\n"
+            f"Number of points {self.interp.x.size}\n"
+            f"Polynomial order {self.poly_order}")
 
 
+class QO_poly_av(QO_av):
+    """Average Quantum Oscillation object with polynomial subtraction
+
+    This is a example of the :class:`QO_av` which the subtraction using 
+    :func:`poly_reg`. The form is the same but with the initialising 
+    function takes the arguments to define the polynomial background 
+    subtraction.
+
+    Parameters
+    ----------
+    data : list
+        A list of raw data of the field sweep in the form of a 
+        list of :class:`.Data` objects to look for quantum oscillations in.
+    min_field : float
+        The lowest field value of the field range to inspect.
+    max_field : float
+        The highest field value of the field range to inspect.
+    poly_order : int
+        The order of the polynomial to use for the subtraction.
+    step_size : float, optional
+        The size of field steps to interpolate. The default is 4 times the 
+        average step size in the raw data.
+    fft_cut : float, optional
+        The maximum frequency to consider in FFT, higher frequencies are 
+        dropped. THe default is to keep all the data.
+    strip_nan : bool, optional
+        If `True` non finite values are removed from the raw data. The 
+        default is `False` and this will raise an error is non finite values 
+        are in the raw data.
+
+    Attributes
+    ----------
+    :
+        This class has the same attributes as the :class:`QO` class but also 
+        with the information about the polynomial subtraction.
+
+    poly_order : int
+        The order of the polynomial to use for the subtraction.
+    """
+    def __init__(self, data_list, min_field, max_field, 
+            poly_order,
+            step_size=None, fft_cut=0, strip_nan=False):
+
+        def bg_sub(interp):
+            return interp - poly_reg(interp, poly_order)
+
+        QO_av.__init__(self, data_list, min_field, max_field, bg_sub,
+            step_size=step_size, fft_cut=fft_cut, strip_nan=strip_nan)
+
+        self.poly_order = poly_order
+
+    def __repr__(self):
+        return (
+            f"Average Quantum Oscillation object:\n"
+            f"Polynomial Background Subtraction\n"
+            f"Number of sweeps averaged {len(self.raw)}\n"
+            f"Field Range {self.min_field:.2f} T to {self.max_field:.2f} T\n"
+            f"Number of points {self.interp.x.size}\n"
+            f"Polynomial order {self.poly_order}")
 
