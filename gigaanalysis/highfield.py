@@ -92,6 +92,7 @@ def example_field(max_field, peak_time, length, sample_rate, as_Data=False):
         kind='linear', fill_value=0, bounds_error=False, assume_sorted=True)
     sim_time = np.arange(length)/sample_rate
     sim_field = field_interp(sim_time)
+
     if as_Data:
         return Data(sim_time, sim_field)
     else:
@@ -99,148 +100,343 @@ def example_field(max_field, peak_time, length, sample_rate, as_Data=False):
 
 
 def PUtoB(PU_signal, field_factor, fit_points, to_fit='PU'):
-    """Converts the voltage from the pick up coil to field. This is 
-    used for pulsed field measurements.
+    """Converts the voltage from the pick up coil to field.
+
+    This is used for pulsed field measurements, where to obtain the filed
+    the induced voltage in a coil is integrated. A fit is also applied 
+    because slight differences in the grounding voltage can cause a large 
+    change in the field so this needs to be corrected for.
 
     Parameters
     ----------
-    PU_signal : numpy.ndarray
-        The signal from pick up coil
+    PU_signal : numpy.ndarray, Data
+        The signal from pick up coil.
     field_factor : float
-        Factor to convert integral to magnetic field
+        Factor to convert integral to magnetic field. Bare in mind this will 
+        change if the acquisition rate changes, for the same coil.
     fit_points : int
-        Number of point at each end to remove offset
+        Number of point at each end to remove offset.
     to_fit : {'PU', 'field'} optional
         If to correct an offset voltage the PU signal is fit or the field.
     
     Returns
     -------
-    field : numpy.ndarray
-        An array of magnetic field the same length as PU_signal
+    field : numpy.ndarray, Data
+        An array of magnetic field the same length as PU_signal. If a 
+        :class:`.Data` is given then the y values are processed and a 
+        :class:`.Data` is returned.
     
     """
+    as_data = isinstance(PU_signal, Data)
+    if as_data:
+        x_vals, PU_signal = PU_signal.both
+
     count = np.arange(len(PU_signal))
     ends = np.concatenate([count[:fit_points], count[-fit_points:]])
+
     if to_fit == 'PU':
         a, b = np.polyfit(ends, PU_signal[ends], 1)
         PU_flat = PU_signal - a*count - b
-        return np.cumsum(PU_flat*field_factor)
+        field_output = np.cumsum(PU_flat*field_factor)
     elif to_fit == 'field':
         field = np.cumsum(PU_signal*field_factor)
         a, b = np.polyfit(ends, field[ends], 1)
-        return field - a*count - b
+        field_output = field - a*count - b
     else:
-        raise ValueError("to_fit needs to be either 'PU' or 'field'.")
+        raise ValueError(
+            f"to_fit needs to be either 'PU' or 'field' but was {to_fit}.")
+
+    if as_data:
+        return Data(x_vals, field_output)
+    else:
+        return field_output
+
+
+def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
+    """Produces a slice that selects a certain section of a filed pulse.
+
+    This takes a field profile and produces a slice that has one side or 
+    both in.
+
+    Parameters
+    ----------
+    field : numpy.ndarray
+        Field values in a 1D numpy array, the field needs to be pulsed in 
+        the positive direction. If you want to analyse a negative sweep 
+        first take the negative of it.
+    B_min : float or None
+        The value of field to cut all the lower data off. This is used as 
+        sometimes the tails of the pulses can be very long. If it is set to 
+        None the full range is kept.
+    side : {'up', 'down', 'both'}
+        Which side of the the pulse to take. 'up' takes the first side, 
+        'down' takes the second, and 'both' includes both sides of the 
+        pulse.
+    skip_num : int, optional
+        The ratio of points to skip to reduce the size of the data set. The 
+        default is `1`, which doesn't slip any points.
+    give_slice : bool, optional
+        If the default of `True` a slice is returned as described. If 
+        `False` then the field is returned with the slice applied to it.
+
+    Returns
+    -------
+    B_slice : slice, numpy.ndarray
+        The slice to apply to take one field side. If `give_slice` is 
+        `False` then the filed array is returned with the slice applied.
+    """
+    if abs(np.max(field)) < abs(np.min(field)):
+        raise ValueError(
+            f"The field goes in the negative direction this function only "
+            f"takes positive field pulses.")
+
+    maxB_arg = np.argmax(field)
+    peak_field = field[maxB_arg]
+
+    if B_min != None and B_min > peak_field:
+        raise ValueError(
+            f"The maximum value of the field is smaller than the given "
+            f"value of B_min.")
+
+    if B_min == None:
+        pass
+    elif side == 'down' and B_min > np.min(field[maxB_arg:]):
+        pass
+    elif side == 'up' and B_min > np.min(field[:maxB_arg]):
+        pass
+    elif side == 'both' and B_min > np.min(field):
+        pass
+    else:
+        raise ValueError(
+            f"The value of B_min was below the lowest field value in the "
+            f"side you selected.")
+
+    if side == 'down':
+        startB_arg = maxB_arg
+        if B_min == None:
+            endB_arg = None
+        else:
+            endB_arg = maxB_arg + \
+                np.where(field[maxB_arg:]<B_min)[0][0]
+
+        B_slice = slice(endB_arg, startB_arg, -skip_num)
+    elif side == 'up':
+        if B_min == None:
+            startB_arg = None
+        else:
+            startB_arg = np.where(field>B_min)[0][0]
+
+        endB_arg = maxB_arg
+        B_slice = slice(startB_arg, endB_arg, skip_num)
+    elif side == 'both':
+        if B_min == None:
+            startB_arg, endB_arg = None, None
+        else:
+            startB_arg = np.where(field>B_min)[0][0]
+            endB_arg = maxB_arg + \
+                np.where(field[maxB_arg:]<B_min)[0][0]
+
+        B_slice = slice(startB_arg, endB_arg, skip_num)
+    else:
+        raise ValueError("side must be either 'up', 'down', or 'both'.")
+
+    if give_slice:
+        return B_slice
+    else:
+        return field[B_slice]
+
 
 
 class PulsedLockIn():
-    '''
-    This class is for locking in to pulsed field data for measurements
-    where the raw signal is taken for post phase sensitive detection
-    processing. The initialise class processes the data to find a selection
-    of properties that will be used for the following processing.
-    The phasing and time constant is asked for when performing the lock in
-    process. The lock-in process is done using the hamming window.
-    These arguments are taken from the __init__ function.
-    Args:
-        field (1d np.array): field values in Tesla will be corrected to make
-            peak field positive
-        current (1d np.array): voltage readings across a shut
-            resistor in Volts
-        voltage (1d np.array): voltage readings in the measurement
-            channel in Volts
-        sample_freq (float default=15e6): The rate of measurements in hertz
-        R_shunt (float default=100.): The values of the shut resistor in ohms
-        preamp (float default=100.): The value of pre-amplification of the
-            measurement channel
-        skip_num (int default=200): The number of points to skip per point
-            used after the lock in process. This is reduce the amount of data
-            that is stored
-        B_min (float default=0.): The minimum value of field to use. This
-            should be increased if the coil is set up to not reach zero
-            before the measurement finishes
-    Attributes:
-        As well as the inputs being stored as attributes the following
-        are made
-        time (1d np.array): The values of the time points of the measurement
-            in milliseconds
-        maxB (int): The array index where max field is reached
-        endB (int): The array index where the measurement ends
-        peak_field (float): The maximum field value reached in Tesla
-        field_direction (bool): True if positive direction False if negative
-        freq (float): The frequency in hertz from the current channel
-        phase (float): The phase of the current measurement
-        Irms (float): The average current readings in amps
-        slice (slice): The array values of the measurement points to use
-        sfield (1d np.array): The field values only with the slice points
-    '''
+    """Performs a digital lock in on pulse field magnetotransport data.
+
+    This class is used to process data from pulsed field measurements using 
+    digital phase sensitive detection. The class is designed and named for 
+    it to be used for magnetotransport measurements, it can and has also 
+    been used for other types of experiments such as torque magnetometry. 
+    The type lock-in process it uses is convolution with a Hamming window.
+
+    As well as the simple phase sensitive detection functionality it also 
+    has tools for finding the phase shift, smoothing signal, and filtering 
+    out voltage spikes. The data produces can be accessed from the 
+    attributes or output as a :class:`.Data` object using one of the 
+    methods.
+    
+
+    Parameters
+    ----------
+    field : numpy.ndarray
+        Field values in Tesla sorted in a 1D numpy array. The field will be
+        changed to positive field is a negative sweep is given.
+    current : numpy.ndarray
+        Voltage reading across a shunt resistor in the form of a 1D numpy 
+        array.
+    voltage : numpy.ndarray
+        Voltage readings in the measurement channel in the form of a 1D
+        numpy array.
+    sample_freq : float, optional
+        The rate of the data acquisition in Hertz. The default is `15e6` 
+        which is a common pulse field sample frequency.
+    R_shunt : float, optional
+        Value of the shunt resistor to measure the current in Ohms. The 
+        default value is `100`.
+    preamp : float, optional
+        Value of the amplification of the voltage signal before being 
+        measured. The default is `1`, so assumes no amplification.
+    skip_num : int, optional
+        The ratio of points to skip when outputting the data. This is used 
+        because the object sizes can become unwieldy if all the data is 
+        saved. The default is `200`, which drops 199 points for every one 
+        it keeps.
+    B_min : float or None, optional
+        The minimum value of the field to keep points lower in field to this 
+        will be dropped. If set to `None` all of the field range is kept.
+        The default value is `0`, which only drops negative field values.
+    side : {'up', 'down', 'both'}, optional
+        The side of the pulse to produce the data for. 'up' is the first 
+        side, 'down' is the second, and 'both' takes both sides. The default 
+        is 'down'.
+    
+    Attributes
+    ----------
+    field : numpy.ndarray
+        The given numpy array containing the field values, if this is a 
+        negative field pulse then the sign of the field values are inverted.
+    Iv : numpy.ndarray
+        The numpy array given for the measurement current voltage.
+    Volt : numpy.ndarray
+        The numpy array given for the measurement voltage.
+    time : numpy.ndarray
+        The time values in milliseconds the same size as the given arrays.
+    fs : float
+        The sample frequency given in Hertz.
+    R_shunt : float
+        The given shunt voltage which is used to converted the measurement 
+        current voltage into current.
+    preamp : float
+        The given amplification that is used to convert the measured voltage 
+        into the generated voltage.
+    field_direction : bool
+        `True` if it is a positive pulse, `False` if it is a negative pulse.
+    peak_field : float
+        The maximum field value reached in the magnet pulse.
+    slice : slice
+        The slice that selects the data of interest out of the complete 
+        measurement. This is set by the `B_min`, `side`, and `step_size` 
+        keywords.
+    freq : float
+        The frequency of the applied measurement current voltage.
+    phase : float
+        The phase shift from the start of the file of the measurement 
+        current voltage in degrees.
+    Irms : float
+        The average applied current in root mean squared Amps.
+    time_const : float
+        The given time constant used for the voltage lock in seconds.
+    phase_shift : float
+        The given phase shift between the current measurement voltage and the 
+        experiment measurement voltage in degrees.
+    loc_Volt : numpy.ndarray
+        The experimental voltage after the lock in process considering the 
+        amplification in root mean squared Volts.
+    loc_Volt_out : numpy.ndarray
+        Equivalent to `loc_Volt` but for the out of phase component of the 
+        experimental voltage.
+    loc_I : numpy.ndarray
+        The applied current after a lock in process in root mean squared 
+        Amps.
+    """
     def __init__(self, field, current, voltage, sample_freq=15e6,
             R_shunt=100., preamp=1., skip_num=200, B_min=0., side='down'):
-        # Take the original data
+        for name, array in {'field':field, 'current':current, 
+                'voltage':voltage}.items():
+            if not isinstance(array, np.ndarray):
+                raise TypeError(
+                    f"{name} needs to be a numpy array but was of type "
+                    f"{type(array)}.")
+            elif not np.isfinite(array).all():
+                raise ValueError(
+                    f"The array {name} contains non-finite values.")
+            elif array.ndim != 1:
+                raise ValueError(
+                    f"{name} needs to be a 1D array but had shape "
+                    f"{array.shape}.")
+
+        if field.size != current.size or field.size != voltage.size:
+            raise ValueError(
+                f"field, current, and voltage all need to be the same "
+                f"size but had sizes {field.size}, {current.size}, and "
+                f"{voltage.size}.")
+
+        # Save the original data
         self.field = field
         self.Iv = current
         self.Volt = voltage
-        # generate info
+        self.preamp = preamp
+        self.R_shunt = R_shunt
+
+        # Generate time
         self.fs = sample_freq
         self.time = 1000*np.arange(len(self.field))/self.fs
+
+        # Make field positive,and save direction
         self.field_direction = (abs(np.max(self.field)) > 
             abs(np.min(self.field)))
         if not self.field_direction:
-            self.field = -self.field 
-        self.maxB = np.argmax(self.field)
-        self.peak_field = self.field[self.maxB]
-        if side == 'down':
-            self.startB = self.maxB
-            self.endB = self.maxB + \
-                np.where(self.field[self.maxB:]<B_min)[0][0]
-            self.slice = slice(self.endB, self.startB, -skip_num)
-        elif side == 'up':
-            self.startB = np.where(self.field[:self.maxB]>B_min)[0][0]
-            self.endB = self.maxB
-            self.slice = slice(self.startB, self.endB, skip_num)
-        elif side == 'both':
-            self.startB = np.where(self.field[:self.maxB]>B_min)[0][0]
-            self.endB = self.maxB + \
-                np.where(self.field[self.maxB:]<B_min)[0][0]
-            self.slice = slice(self.startB, self.endB, skip_num)
-        else:
-            raise ValueError("side must be either 'up', 'down', or 'both'.")
+            self.field = -self.field
+
+        self.peak_field = np.max(self.field)
+
+        # Make the slice
+        self.slice = pick_pulse_side(self.field, B_min, side,
+            skip_num=skip_num)
+
         # Find frequencies and phases
         self.freq = diglock.find_freq(self.Iv, self.fs, padding=10)
         self.phase = diglock.find_phase(self.Iv, self.fs, self.freq)
         self.Irms = np.average((self.Iv*diglock.gen_ref(self.freq, self.fs,
             self.phase, len(self.Iv)))[1000:-1000])*np.sqrt(2)/R_shunt
-        self.preamp = preamp
-        self.R_shunt = R_shunt
+
         # Attributes to be set
         self.time_const = None
         self.phase_shift = 0
         self.loc_Volt = None
         self.loc_Volt_out = None
+        self.loc_I = None
+
+    def _has_locked(self):
+        """This is just for checking that the lock in process has happened 
+        before trying to output or manipulate the locked in data.
+        """
+        if isinstance(self.loc_Volt, type(None)):
+            raise AttributeError(
+                f"The lock in process has not yet been performed. Please "
+                f"call the method lockin_Volt first.")
+
+    def _has_locked_I(self):
+        """This is just for checking that the lock in process has happened 
+        before trying to output or manipulate the locked in data.
+        """
+        if isinstance(self.loc_I, type(None)):
+            raise AttributeError(
+                f"The lock in process on the current has not yet been "
+                f"performed. Please call the method lockin_current first.")
 
     def lockin_Volt(self, time_const, phase_shift=None):
-        """
-        This preforms a lock in process on the measurement signal.
-        This uses :func:`.diglock.ham_lock_in`.
+        """This preforms a lock in process on the measurement signal.
+
+        This method sets the attributes :attr:`loc_Volt` and 
+        :attr:`loc_Volt_out`. The lock in process is performed using 
+        :func:`.diglock.ham_lock_in`. Does not return anything.
         
         Parameters
         ----------
         time_const : float
-            Time for averaging in seconds
-        phase_shift : float
-            Phase difference between the current voltage
-            and the measurement voltage
-
-        Attributes
-        ----------
-        As well as the inputs being stored as attributes the following
-        are made
-        loc_Volt : 1d np.array
-            Measurement voltage after lock in
-            process corrected for preamp amplitude in Volts rms
-        loc_Volt_out : 1d numpy.ndarray
-            Measurement voltage after lock in the same as
-            `loc_Volt` but with the out of phase signal
+            Time for averaging in seconds.
+        phase_shift : float, optional
+            Phase difference between the current voltage and the measurement 
+            voltage, this defaults to the attribute :attr:`phase_shift`. 
+            This is in degrees.
         """
         self.time_const = time_const
         if phase_shift != None:
@@ -253,52 +449,78 @@ class PulsedLockIn():
             )/self.preamp
 
     def lockin_current(self, time_const, phase=0,):
-        """
-        This preforms a lock in process on the measurement signal.
-        This uses :func:`.diglock.ham_lock_in`.
+        """This preforms a lock in process on the current signal.
+
+        This uses :func:`.diglock.ham_lock_in` to perform the lock in and 
+        sets the attribute :attr:`loc_I`.
         
         Parameters
         ----------
-            time_const : float
-                Time for averaging in seconds
-
-        Attributes
-        ----------
-            As well as the inputs being stored as attributes the following
-            are made
-            loc_I : 1d np.array
-                Current after lock in
-                process corrected for preamp amplitude in Volts rms
+        time_const : float
+            Time for averaging in seconds.
+        phase : float, optional
+            An applied phase shift for the current, in degrees. The default 
+            value is 0.
         """
         self.loc_I = diglock.ham_lock_in(self.Volt, time_const,
             self.fs, self.freq, self.phase + phase,)/self.R_shunt
 
-    def smooth_Volts(self, smooth_time, smooth_order=2):
-        """
-        This preforms a lock in process on the measurement signal, it then
-        performs a light smoothing to remove aliasing.
-        This uses :func:`.diglock.ham_lock_in`.
-        The smoothing is done with a pass of a Savitzky-Golay filter from
-        :func:`scipy.signal.savgol_filter`.
+    def spike_lockin_Volt(self, time_const, phase_shift=None,
+            sdl=2, region=1001):
+        """Spike removing lock in process applied to the measurement signal.
+        
+        This preforms a lock in process on the measurement signal, with the
+        aim of removing spikes in the raw first. This can be useful as some 
+        magnets can see high voltage spikes.
+        This uses :func:`.diglock.spike_lock_in`.
+        Nothing is returned but the following attributes are updated, 
+        :attr:`time_const`, :attt:`phase_shift`, :attr:`loc_Volt`, and 
+        :attr:`loc_Volt_out.
         
         Parameters
         ----------
-            smooth_points : float
-                The time over to fit for smoothing.
-            smooth_order : int, optional
-                The order of the poly to fit for the smoothing.
-
-        Attributes
-        ----------
-            As well as the inputs being stored as attributes the following
-            are made
-            loc_Volt : 1d np.array
-                Measurement voltage after lock in
-                process corrected for preamp amplitude in Volts rms
-            loc_Volt_out : 1d numpy.ndarray
-                Measurement voltage after lock in the same as
-                `loc_Volt` but with the out of phase signal
+        time_const : float
+            Time for averaging in seconds.
+        phase_shift : float, optional
+            Phase difference between the current voltage and the measurement 
+            voltage in degrees. This defaults to the attribute 
+            :attr:`phase_shift`.
+        sdl : float, optional
+            The number of standard deviations the data to be deviate from to 
+            be considered a outlier. Outliers are identified as spikes. 
+            The default is 2.
+        region : int, optional
+            The number of points around the outlier that are also considered 
+            compromised. The default is 1001.
         """
+        self.time_const = time_const
+        if phase_shift != None:
+            self.phase_shift = phase_shift
+        self.loc_Volt = diglock.spike_lock_in(self.Volt, time_const,
+            self.fs, self.freq, self.phase + self.phase_shift,
+            sdl=sdl, region=region,)/self.preamp
+        self.loc_Volt_out = diglock.spike_lock_in(self.Volt, time_const,
+            self.fs, self.freq, self.phase + self.phase_shift + 90.,
+            sdl=sdl, region=region,)/self.preamp
+
+    def smooth_Volts(self, smooth_time, smooth_order=2):
+        """This smooths the measurement signal.
+        
+        This must be applied after the lock in process. It changes the 
+        attributes :attr:`loc_Volt` and :attr:`loc_Volt_out`. The smoothing 
+        is done with a pass of a Savitzky-Golay filter from
+        :func:`scipy.signal.savgol_filter`. This is particularly useful to 
+        remove small aliasing issues that can arise when using a short 
+        lock in window.
+        
+        Parameters
+        ----------
+        smooth_points : float
+            The time window to fit the polynomial for smoothing, in seconds.
+        smooth_order : int, optional
+            The order of the poly to fit for the smoothing, the default is 2.
+        """
+        self._has_locked()
         smooth_points = int(np.ciel(smooth_time/self.fs/2)*2 + 1)
         self.loc_Volt = savgol_filter(self.loc_Volt, smooth_points,
             smooth_order,)
@@ -306,9 +528,25 @@ class PulsedLockIn():
             smooth_order,)
 
     def rephase(self, phase_shift, trial=False):
+        """Rephases the signal to the new phase.
+        
+        This changes the attributes :attr:`loc_Volt` and 
+        :attr:`loc_Volt_out` to shift the phase by a certain amount. If the 
+        :param:`trial` is set to `True` then the result is returned instead 
+        of updating the attributes. The phase shift given is absolute and 
+        :attr:`phase_shft` is also updated.
+
+        Parameters
+        ----------
+        phase_shift : float
+            The new phase shift to use in degrees. This is absolute so the 
+            result is independent to the current phase shift.
+        trial : bool, optional
+            Whether to keep the new rephasing or to return the result 
+            instead. The default value is `False` which updates the 
+            attributes and returns nothing.
         """
-        Rephases the signal to the new phase
-        """
+        self._has_locked()
         phase_difference = phase_shift - self.phase_shift
         v_in_new  = self.loc_Volt*np.cos(phase_difference*np.pi/180) + \
             self.loc_Volt_out*np.sin(phase_difference*np.pi/180)
@@ -321,37 +559,54 @@ class PulsedLockIn():
         else:
             return v_in_new, v_out_new
 
-    def auto_phase(self, aim='change', **kwargs):
-        """
+    def auto_phase(self, aim='change'):
+        """Finds the value of the phase_shift to achieve a certain result.
+
         This finds the phase which makes the out of phase a flat as possible
-        and also has the in phase be majority positive.
-        Uses :func:`.diglock.ham_lock_in` and
-        :func:`.diglock.phase_in`
+        and also has the in phase be majority positive. It can also be set 
+        to move the majority of the signal into the in-phase channel using 
+        the :param:`aim` parameter. Uses :func:`.diglock.phase_in`.
         
-        Args:
-            time_const (float): The time constant to be used to average by
-                the lock in program.
-            aim : ('change', 'value')
-                Weather to minimise the change in signal or the signal total
-        Returns:
-            phase (float): A value between 0 and 360 which produces the
-                best out of phase signal.
+        Parameters
+        ----------
+        aim : {'change', 'value'}
+            Weather to minimise the change in signal or the signal total in 
+            the out of phase channel.
+
+        Returns
+        -------
+        phase : float
+            A value between 0 and 360 which produces which most achieves 
+            the set goal in degrees.
         """
-        # Perform lock in to get data to fit
+        self._has_locked()
         v_in = self.loc_Volt_out[self.slice]
         v_out = self.loc_Volt_out[self.slice]
         return (self.phase_shift +
             diglock.phase_in(v_in, v_out, aim=aim)) % 360
 
-    def find_phase(self, skip_num=10, start_auto='change', to_zero=True):
+    def find_phase(self, skip_num=10, start_auto='change', to_zero=False):
+        """Produces a graph with a slider that can be helpful for phasing.
+
+        This produces a graph with a ipywidgets slider so that it is 
+        possible to inspect what phase shift will be best.
+
+        Parameters
+        ----------
+        skip_num : int, optional
+            The ratio of points to skip when plotting. As this requires a 
+            lot of calculation it can be beneficial to only plot a fraction 
+            speed up the process. The default value is 10.
+        start_auto : int, float, {'change', 'value'}, optional
+            Decides in what phase to start the graph at. If a string is 
+            given it is passed to :meth:`auto_phase`. If an number is given 
+            the phase is set to that value.
+        to_zero : bool
+            If `True` the in phase and out of phase components are set to 
+            zero at the lowest field. This can make the changes easier to 
+            inspect. The default is `False`.
         """
-        This produces a graph with a slider that can be used
-        Args:
-            time_const (float): The averaging time in seconds
-            skip_num (int): The number of points to skip passed when plotting
-            start_auto (bool): If true will use auto_phase to find the best
-                phase and start the graph at that location
-        """
+        self._has_locked()
 
         if isinstance(start_auto, (np.int, np.float)):
             start_phase = start_auto
@@ -387,52 +642,57 @@ class PulsedLockIn():
         interact(plotting, phase=FloatSlider(min=0, max=360, step=1,
             value=start_phase, continuous_update=False))
 
-    def spike_lockin_Volt(self, time_const, phase_shift,
-            sdl=2, region=1001):
-        """
-        This preforms a lock in process on the measurement signal. With the
-        aim of removing spikes in the raw first.
-        This uses :func:`.diglock.spike_lock_in`.
-        
+    def reset_slice(self, skip_num='No', B_min='No', side='No', trial=False):
+        """This reproduces the slice which selects the data of interest.
+
+        This is used to change the attribute :attr:`slice`. It also has a 
+        trial option that will return a new slice instead of updating the 
+        existing attribute. The parameters will try to all default to the 
+        values to reproduce the current slice, this maybe not be exacltly 
+        the same with :param:`B_min`.
+
         Parameters
         ----------
-            time_const : float
-                Time for averaging in seconds
-            phase_shift : float
-                Phase difference between the current voltage
-                and the measurement voltage
-            sdl : float, optional
-                The number of standard deviations the data
-                to be deviate from to be considered a outlier.
-            region : int, optional
-                The number of points around the outlier
-                that are also considered bad.
-
-        Attributes
-        ----------
-            As well as the inputs being stored as attributes the following
-            are made
-            loc_Volt : 1d np.array
-                Measurement voltage after lock in
-                process corrected for preamp amplitude in Volts rms
-                Only includes the data points listed in slice
-            loc_Volt_out : 1d numpy.ndarray
-                Measurement voltage after lock in the same as
-                `loc_Volt` but with the out of phase signal
-            Res : 1d numpy.ndarray
-                `loc_Volt` divided by current in Ohms
+        skip_num : int, optional
+            The ratio of points to skip when outputting the data. This is 
+            used because the object sizes can become unwieldy if all the 
+            data is saved.
+            it keeps.
+        B_min : float or None, optional
+            The minimum value of the field to keep points lower in field to 
+            this will be dropped. If set to `None` all of the field range is 
+            kept.
+        side : {'up', 'down', 'both'}, optional
+            The side of the pulse to produce the data for. 'up' is the first 
+            side, 'down' is the second, and 'both' takes both sides.
+        trial : bool, optional
+            If `True` the slice is not saved and instead returned. The 
+            default is `False` which updates :attr:`slice`.
         """
-        self.time_const = time_const
-        self.phase_shift = phase_shift
-        self.loc_Volt = diglock.spike_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + phase_shift,
-            sdl=sdl, region=region,)/self.preamp
-        self.loc_Volt_out = diglock.spike_lock_in(self.Volt, time_const,
-            self.fs, self.freq, self.phase + phase_shift + 90.,
-            sdl=sdl, region=region,)/self.preamp
+        if skip_num == 'No':
+            skip_num = np.abs(self.slice.step)
+
+        if B_min == 'No':
+            B_min = np.min(self.field[[self.slice.start, self.slice.stop]])
+
+        if side == 'No':
+            if self.slice.step < 0:
+                side = 'down'
+            elif np.argmax(self.field[self.slice][::-1]) == 0:
+                side = 'up'
+            else:
+                side = 'both'
+
+        if trial:
+            return pick_pulse_side(self.field, B_min, side, 
+                skip_num=skip_num)
+        else:
+            self.slice = pick_pulse_side(self.field, B_min, side, 
+                skip_num=skip_num)
 
     def _make_Data(self, y_values, as_Data, x_axis):
-        """
+        """This is used to return the data after the lock in process in a 
+        certain form.
         """
         if as_Data:
             if x_axis == 'field':
@@ -446,30 +706,152 @@ class PulsedLockIn():
             return y_values
 
     def volts_in(self, as_Data=True, x_axis='field'):
+        """The signal from the locked in, in phase voltage.
+
+        Parameters
+        ----------
+        as_Data : bool, optional
+            If `True`, which is the default, the data is returned as a 
+            :class:`.Data` object. If `False` it is returned as a 
+            :class:`numpy.ndarray`.
+        x_axis : {'field', 'time'}
+            For the :class:`.Data` object whether the independent variable 
+            should be the applied field or the time. The default is the 
+            field.
+
+        Returns
+        -------
+        volts_in : Data, numpy.ndarray
+            The locked in measurement signal from the in phase channel.
         """
-        The signal from the locked in, in phase voltage.
-        """
+        self._has_locked()
         return self._make_Data(self.loc_Volt[self.slice],
             as_Data=as_Data, x_axis=x_axis)
 
     def volts_out(self, as_Data=True, x_axis='field'):
+        """The signal from the locked in, out of phase voltage.
+
+        Parameters
+        ----------
+        as_Data : bool, optional
+            If `True`, which is the default, the data is returned as a 
+            :class:`.Data` object. If `False` it is returned as a 
+            :class:`numpy.ndarray`.
+        x_axis : {'field', 'time'}
+            For the :class:`.Data` object whether the independent variable 
+            should be the applied field or the time. The default is the 
+            field.
+
+        Returns
+        -------
+        volts_out : Data, numpy.ndarray
+            The locked in measurement signal from the out of phase channel.
         """
-        The signal from the locked in, in phase voltage.
-        """
+        self._has_locked()
         return self._make_Data(self.loc_Volt_out[self.slice],
             as_Data=as_Data, x_axis=x_axis)
 
     def res_in(self, as_Data=True, x_axis='field'):
+        """The locked in voltage signal, in phase in units of Ohms.
+
+        Parameters
+        ----------
+        as_Data : bool, optional
+            If `True`, which is the default, the data is returned as a 
+            :class:`.Data` object. If `False` it is returned as a 
+            :class:`numpy.ndarray`.
+        x_axis : {'field', 'time'}
+            For the :class:`.Data` object whether the independent variable 
+            should be the applied field or the time. The default is the 
+            field.
+
+        Returns
+        -------
+        res_in : Data, numpy.ndarray
+            The locked in voltage signal, from the in phase channel divided 
+            by the average current to obtain the units in Ohms.
         """
-        The signal from the locked in, in phase voltage.
-        """
+        self._has_locked()
         return self._make_Data(self.loc_Volt[self.slice]/self.Irms,
             as_Data=as_Data, x_axis=x_axis)
 
     def res_out(self, as_Data=True, x_axis='field'):
+        """The locked in voltage signal, out of phase in units of Ohms.
+
+        Parameters
+        ----------
+        as_Data : bool, optional
+            If `True`, which is the default, the data is returned as a 
+            :class:`.Data` object. If `False` it is returned as a 
+            :class:`numpy.ndarray`.
+        x_axis : {'field', 'time'}
+            For the :class:`.Data` object whether the independent variable 
+            should be the applied field or the time. The default is the 
+            field.
+
+        Returns
+        -------
+        res_out : Data, numpy.ndarray
+            The locked in voltage signal, from the out of phase channel 
+            divided by the average current to obtain the units in Ohms.
         """
-        The signal from the locked in, in phase voltage.
-        """
+        self._has_locked()
         return self._make_Data(self.loc_Volt_out[self.slice]/self.Irms,
             as_Data=as_Data, x_axis=x_axis)
+
+    def volts_over_current(self, as_Data=True, x_axis='field'):
+        """The locked in voltage signal over the current signal.
+
+        The is for the same purpose as :meth:`res_in` but if the applied 
+        current is for some reason not stable.
+
+        Parameters
+        ----------
+        as_Data : bool, optional
+            If `True`, which is the default, the data is returned as a 
+            :class:`.Data` object. If `False` it is returned as a 
+            :class:`numpy.ndarray`.
+        x_axis : {'field', 'time'}
+            For the :class:`.Data` object whether the independent variable 
+            should be the applied field or the time. The default is the 
+            field.
+
+        Returns
+        -------
+        res_in : Data, numpy.ndarray
+            The locked in voltage signal from the in phase channel divided 
+            by the locked in current signal. This also obtains the value in 
+            units of Ohms but allows to take into consideration variable 
+            current flow.
+        """
+        self._has_locked()
+        self._has_locked_I()
+        v_over_i = self.loc_Volt[self.slice]/self.loc_I[self.slice]
+        return self._make_Data(v_over_i, as_Data=as_Data, x_axis=x_axis)
+
+    def current_in(self, as_Data=True, x_axis='field'):
+        """The locked in current signal in units of Amps rms.
+
+        Parameters
+        ----------
+        as_Data : bool, optional
+            If `True`, which is the default, the data is returned as a 
+            :class:`.Data` object. If `False` it is returned as a 
+            :class:`numpy.ndarray`.
+        x_axis : {'field', 'time'}
+            For the :class:`.Data` object whether the independent variable 
+            should be the applied field or the time. The default is the 
+            field.
+
+        Returns
+        -------
+        current_in : Data, numpy.ndarray
+            The locked in current signal in units of Amps rms.
+        """
+        self._has_locked()
+        self._has_locked_I()
+        return self._make_Data(self.loc_I[self.slice],
+            as_Data=as_Data, x_axis=x_axis)
+
+
 

@@ -162,6 +162,10 @@ class Data():
         else:
             return True
 
+    __array_ufunc__ = None
+    # This is so that the user need to specify .x or .y when acting 
+    # with numpy functions.
+
     def __maths_check(self, other, operation,):
         """This performs the error checking on the standard operators
 
@@ -340,7 +344,7 @@ class Data():
         produced. If given a int a length two array with [x, y] is returned. 
         """
         if self.__index_check(k):
-            return self.values(k)
+            return self.values[k]
         else:
             return Data(self.values[k])
 
