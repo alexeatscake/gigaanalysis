@@ -8,6 +8,7 @@ them.
 """
 
 from .data import *
+from . import mfunc
 
 import numpy as np
 import pandas as pd
@@ -91,9 +92,67 @@ class Fit_result():
         return Data(x_vals, self.func(x_vals, *self.popt))
 
 
-def curve_fit(data, func, p0=None, full=True, **kwargs):
-    """This is an implementation of :func:`scipy.optimize.curve_fit`
-    for acting on :class:`gigaanalysis.data.Data` objects. This performs
+def curve_fit(data, func, p0, full=True, **kwargs):
+    """Fit curves to Data objects with functions that produce Data objects.
+
+    This is an implementation of :func:`scipy.optimize.curve_fit`
+    for acting on :class:`.Data` objects. This performs
+    a least squares fit to the data of a function.
+
+    Parameters
+    ----------
+    data : Data
+        The data to perform the fit on.
+    func : function
+        The model function to fit. It must take the x values as
+        the first argument and the parameters to fit as separate remaining
+        arguments. It must also return a :class:`.Data` object.
+    p0 : numpy.ndarray
+        Initial guess for the parameters. Is passed to
+        :func:`scipy.optimize.curve_fit` included so it can be addressed
+        positionally.
+    full : bool, optional
+        If `True`, `fit_result` will include residuals, and if `False`
+        they will not be calculated and only results included.
+    kwargs :
+        Keyword arguments are passed to :func:`scipy.optimize.curve_fit`.
+    
+    Returns
+    -------
+    fit_result : Fit_result
+        A GigaAnalysis Fit_result object containing the results.
+    """
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+
+    try:
+        func_out = func(data.x, *p0)
+        assert isinstance(func_out, Data)
+    except:
+        raise TypeError(
+            f"The func parameter needs to take a function that receives "
+            f"an array of x values and the arguments in p0 and returns "
+            f"a Data object. This was not what was given.")
+
+    def func_y(x_data, *p0):
+        return func(x_data, *p0).y
+
+    popt, pcov = sp_curve_fit(func_y, data.x, data.y, p0=p0, **kwargs)
+    if full:
+        results = func(data.x, *popt)
+        residuals = data - results
+    else:
+        results, residuals = None, None
+
+    return Fit_result(func_y, popt, pcov, results, residuals)
+
+
+def curve_fit_y(data, func, p0=None, full=True, **kwargs):
+    """Fit curves to Data objects with functions that produce y values.
+
+    This is an implementation of :func:`scipy.optimize.curve_fit`
+    for acting on :class:`.Data` objects. This performs
     a least squares fit to the data of a function.
 
     Parameters
@@ -116,8 +175,8 @@ def curve_fit(data, func, p0=None, full=True, **kwargs):
     
     Returns
     -------
-    fit_result : gigaanalysis.fit.Fit_result
-        A gigaanalysis Fit_result object containing the results
+    fit_result : Fit_result
+        A GigaAnalysis Fit_result object containing the results.
     """
     if not isinstance(data, Data):
         raise TypeError(
@@ -133,43 +192,11 @@ def curve_fit(data, func, p0=None, full=True, **kwargs):
     return Fit_result(func, popt, pcov, results, residuals)
 
 
-def any_poly(x_data, *p_vals, as_Data=False):
-    """The point of this function is to generate the values expected from a
-    linear fit. It is designed to take the values obtained from
-    :func:`numpy.polyfit`.
-    For a set of p_vals of length n+1 ``y_data = p_vals[0]*x_data**n + 
-    p_vals[0]*x_data**(n-1) + ... + p_vals[n]``
-
-    Parameters
-    ----------
-    x_data :  numpy.ndarray
-        The values to compute the y values of.
-    p_vals : float
-        These are a series of floats that are the coefficients of the
-        polynomial starting with with the highest power.
-    as_Data : bool, optional
-        If False returns a :class:`numpy.ndarray` which is the default
-        behaviour. If True returns a :class:`gigaanalysis.data.Data` object
-        with the x values given and the cosponsoring y values.
-
-    Returns
-    -------
-    results : numpy.ndarray or Data
-        The values expected from a polynomial with the 
-        specified coefficients.
-    """
-    results = x_data*0
-    for n, p in enumerate(p_vals[::-1]):
-        results += p*np.power(x_data, n)
-    if as_Data:
-        return Data(x_data, results)
-    else:
-        return results
-
 def poly_fit(data, order, full=True):
-    """This function fits a polynomial of a certain order to a given
-    data set. It uses :func:`numpy.polyfit` for the fitting. The function
-    which is to produce the data is :func:`gigaanalysis.fit.any_poly`.
+    """Fit a polynomial of a certain order to a given data set.
+
+    It uses :func:`numpy.polyfit` for the fitting. The function
+    which is to produce the data is :func:`.mfunc.make_poly`.
 
     Parameters
     ----------
@@ -183,8 +210,8 @@ def poly_fit(data, order, full=True):
     
     Returns
     -------
-    fit_result : gigaanalysis.fit.Fit_result
-        A gigaanalysis Fit_result object containing the results the
+    fit_result : Fit_result
+        A GigaAnalysis Fit_result object containing the results where the
         fit parameters are the coefficients of the polynomial. Follows the
         form of :func:`gigaanalysis.fit.any_poly`.
     """
@@ -193,79 +220,125 @@ def poly_fit(data, order, full=True):
             f"data need to be a Data object but instead was {type(data)}.")
 
     popt, pcov = np.polyfit(data.x, data.y, order, cov=True)
-    func = any_poly
+    ffunc = any_poly
     if full:
-        results = Data(data.x, func(data.x, *popt))
+        results = Data(data.x, ffunc(data.x, *popt))
         residuals = data - results
     else:
         results, residuals = None, None
-    return Fit_result(func, popt, pcov, results, residuals)
+    return Fit_result(ffunc, popt, pcov, results, residuals)
 
 
-def make_sin(x_data, amp, wl, phase, offset, as_Data=False):
-    """This function generates sinusoidal signals
-    The form of the equation is
-    ``amp*np.sin(x_data*np.pi*2./wl + phase*np.pi/180.) + offset``
 
-    Parameters
-    ----------
-    x_data :  numpy.ndarray
-        The values to compute the y values of.
-    amp : float
-        Amplitude of the sin wave.
-    wl : float
-        Wavelength of the sin wave units the same as `x_data`.
-    phase : float
-        Phase shift of the sin wave in deg
-    offset : float
-        Shift of the y values
-    as_Data : bool, optional
-        If False returns a :class:`numpy.ndarray` which is the default
-        behaviour. If True returns a :class:`gigaanalysis.data.Data` object
-        with the x values given and the cosponsoring y values.
+def sin_fit(data, p0=None, offset=False, full=True, **kwargs):
+    """Fits a sinusoid to a given Data object.
 
-    Returns
-    -------
-    results : numpy.ndarray or Data
-        The values expected from the sinusoidal with the given parameters
-    """
-    results = amp*np.sin(x_data*np.pi*2./wl + phase*np.pi/180.) + offset
-    if as_Data:
-        return Data(x_data, results)
-    else:
-        return results
-
-
-def sin_fit(data, full=True):
-    """This function fits a polynomial of a certain order to a given
-    data set. It uses :func:`numpy.polyfit` for the fitting. The function
-    which is to produce the data is :func:`gigaanalysis.fit.any_poly`.
+    This uses :func:`mfunc.make_sin` and has the option to either include an 
+    offset from zero or not to. It then uses :func:`curve_fit_y` that 
+    makes use of :func:`scipy.optermize.curve_fit` which `kwargs` are passed 
+    to.
 
     Parameters
     ----------
-    data_set : Data
-        The data set to perform the fit on.
+    data : Data
+        The Data to fit the sinusoid to.
+    p0 : numpy.ndarray, optional
+        The initial values to begin the optimisation from. These are in 
+        order, the amplitude of the sin, the wavelength, the phase, and if 
+        included the offset from zero.
+    offset : bool, optional
+        If `True` an offset from zero is also included in the fit. The 
+        default is `False`.
     full : bool, optional
-        If True fit_result will include residuals if False they will
-        not be calculated and only results included.
-    
+        If `True`, which is the default, the results and residuals are 
+        included in the returned :class:`Fit_result`.
+    kwargs :
+        The keyword arguments are passed to 
+        :func:`scipy.optermize.curve_fit`.
+
     Returns
     -------
-    fit_result : gigaanalysis.fit.Fit_result
-        A gigaanalysis Fit_result object containing the results the
-        fit parameters are the coefficients of the polynomial. Follows the
-        form of :func:`gigaanalysis.fit.any_poly`.
+    fit_result, Fit_result
+        A GigaAnalysis Fit_result object containing the results where the
+        fit parameters are same as specified in :func:`.mfunc.make_sin`.
     """
     if not isinstance(data, Data):
         raise TypeError(
             f"data need to be a Data object but instead was {type(data)}.")
 
-    popt, pcov = np.polyfit(data.x, data.y, order, cov=True)
-    func = any_poly
-    if full:
-        results = Data(data.x, func(data.x, *popt))
-        residuals = data - results
-    else:
-        results, residuals = None, None
+    if p0 == None:
+        pass
+    elif len(p0) != 3 and not offset:
+        raise ValueError(
+            f"There are 3 variables if offset is False and {len(p0)} were "
+            f"given in p0.")
+    elif len(p0) != 4 and offset:
+        raise ValueError(
+            f"There are 4 variables if offset is True and {len(p0)} were "
+            f"given in p0.")
 
-    return Fit_result(func, popt, pcov, results, residuals)
+    if offset:
+        func = lambda x_data, amp, wl, phase, offset: mfunc.make_sin(
+            x_data, amp, wl, phase, offset, as_Data=False)
+    else:
+        func = lambda x_data, amp, wl, phase: mfunc.make_sin(
+            x_data, amp, wl, phase, as_Data=False)
+
+    return curve_fit_y(data, func, p0=p0, full=full, **kwargs)
+
+
+def gaussian_fit(data, p0=None, offset=False, full=True, **kwargs):
+    """Fits a Gaussian to a given Data object.
+
+    This uses :func:`mfunc.make_gaussian` and has the option to either 
+    include an offset from zero or not to. It then uses 
+    :func:`curve_fit_y` that makes use of :func:`scipy.optermize.curve_fit` 
+    which `kwargs` are passed to.
+
+    Parameters
+    ----------
+    data : Data
+        The Data to fit the sinusoid to.
+    p0 : numpy.ndarray, optional
+        The initial values to begin the optimisation from. These are in 
+        order, the amplitude of the Gaussian, the central point, the 
+        standard deviation, and if included the offset from zero.
+    offset : bool, optional
+        If `True` an offset from zero is also included in the fit. The 
+        default is `False`.
+    full : bool, optional
+        If `True`, which is the default, the results and residuals are 
+        included in the returned :class:`Fit_result`.
+    kwargs :
+        The keyword arguments are passed to 
+        :func:`scipy.optermize.curve_fit`.
+
+    Returns
+    -------
+    fit_result, Fit_result
+        A GigaAnalysis Fit_result object containing the results where the
+        fit parameters are same as specified in :func:`.mfunc.make_gaussian`.
+    """
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data need to be a Data object but instead was {type(data)}.")
+
+    if p0 == None:
+        pass
+    elif len(p0) != 3 and not offset:
+        raise ValueError(
+            f"There are 3 variables if offset is False and {len(p0)} were "
+            f"given in p0.")
+    elif len(p0) != 4 and offset:
+        raise ValueError(
+            f"There are 4 variables if offset is True and {len(p0)} were "
+            f"given in p0.")
+
+    if offset:
+        func = lambda x_data, amp, mean, std, offset: mfunc.make_gaussian(
+            x_data, amp, mean, std, offset, as_Data=False)
+    else:
+        func = lambda x_data, amp, mean, std: mfunc.make_gaussian(
+            x_data, amp, mean, std, as_Data=False)
+
+    return curve_fit_y(data, func, p0=p0, full=full, **kwargs)

@@ -8,12 +8,13 @@ background subtraction and then Fourier transforming that inverse field.
 """
 
 from .data import *
+from . import mfunc
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-from scipy.signal import savgol_filter, get_window, find_peaks
+from scipy.signal import savgol_filter
 
 
 def invert_x(data):
@@ -110,147 +111,6 @@ def poly_reg(data, polyorder):
         y_vals += p*np.power(data.x, polyorder-n)
 
     return Data(data.x, y_vals)
-
-
-def FFT(data, n=65536, window='hanning', freq_cut=0.):
-    """Performs an Fast Fourier Transform on the given data.
-
-    This assumes that the data is real, and the data provided needs to be 
-    evenly spaced. Makes use of :func:`numpy.fft.rfft`.
-
-    Parameters
-    ----------
-    data : Data
-        The data to be FFT. This must be evenly spaced in x.
-    n : int, optional
-        The number of points to make the FFT extra points will be zero 
-        padded. The default is ``2**16 = 65536``. If the data is longer 
-        than the value of n, n is rounded up to the next power of 2.
-    window : str, optional
-        The type of windowing function to use taken from 
-        :func:`scipy.signal.get_window`. The default is 'hanning'.
-    freq_cut : float, optional
-        The frequency to drop all the higher from. The default is 0 which 
-        means that all the frequencies are kept.
-
-    Returns
-    -------
-    fft_result : Data
-        A data object with the FFT frequencies in the x values and the 
-        amplitudes in the y values.
-    """
-    if not isinstance(data, Data):
-        raise TypeError(
-            f"data need to be a Data object but instead was {type(data)}.")
-
-    spacing = data.x[1] - data.x[0]
-    if not np.isclose(spacing, np.diff(data.x)).all():
-        raise ValueError(
-            "The data needs to be evenly spaced to FFT.")
-
-
-    window_func = get_window(window, len(data))
-
-    if n < len(data):
-        n = int(2**np.ceil(np.log2(len(data))))
-
-    data /= np.average(window_func)*len(data)/2  # Normalise the amplitude
-
-    fft_vals = np.abs(
-        np.fft.rfft(data.y*window_func, n=n))
-    fft_freqs = np.fft.rfftfreq(n, d=spacing)
-    freq_arg = None
-    if freq_cut > 0:
-        freq_arg = np.searchsorted(fft_freqs, freq_cut)
-
-    return Data(fft_freqs[0:freq_arg], fft_vals[0:freq_arg])
-
-
-def get_peaks(data, n_peaks=4, as_Data=False, **kwargs):
-    """This returns the peaks in a data object as a numpy array.
-
-    Using :func:`scipy.signal.find_peaks` the peaks in the data object are 
-    found. ``**kwargs`` are passed to that function. This is most commonly 
-    used when examining FFT data.
-
-    Parameters
-    ----------
-    data : Data
-        The data to look for peaks in.
-    n_peaks : int, optional
-        The number of peaks to return, the default is 4.
-    as_Data : bool, optional
-        If `True` the peak info is returned as a :class:`.Data` object. The 
-        default is `False`. 
-
-    Returns
-    -------
-    peak_info : numpy.ndarray
-        A two column numpy array with the with the location and the 
-        amplitude of each peak.
-    """
-    if not isinstance(data, Data):
-        raise TypeError(
-            f"data need to be a Data object but instead was {type(data)}.")
-
-    peak_args = find_peaks(data.y, **kwargs)[0]
-    if len(peak_args) < n_peaks:
-        print('Few peaks were found, try reducing restrictions.')
-
-    peak_args = peak_args[data.y[peak_args].argsort()
-                         ][:-(n_peaks+1):-1]
-    peak_info = np.concatenate([data.x[peak_args, None],
-                           data.y[peak_args, None]], axis=1)
-
-    if as_Data:
-        return Data(peak_info)
-    else:
-        return peak_info
-
-
-def peak_height(data, position, x_range, x_value=False):
-    """Gives the info on highest peak in a given region.
-
-    It achieves this my trimming the data to a region and then returning the 
-    maximum y_value. This is useful for extracting peak heights from an FFT.
-
-    Parameters
-    ----------
-    data : Data
-        The data to extract the peak hight from.
-    position : float
-        The central position to search for the peak.
-    x_range : float
-        The range in x to look for the peak. This is the total range so will 
-        extend half of this from ``position``.
-    x_value : bool, optional
-        If `True` the x value and the y value is returned. The default is 
-        `False` which only returns the y value.
-
-    Returns
-    -------
-    x_peak : float
-        If x_value is `True` the x position of the peak is returned.
-    y_peak : float
-        The y_value of the peak. Which is the highest y value in a given 
-        range of the data.
-    """
-    if not isinstance(data, Data):
-        raise TypeError(
-            f"data need to be a Data object but instead was {type(data)}.")
-
-    trimmed = data.x_cut(position - x_range/2,  position + x_range/2)
-    if len(trimmed) == 0:
-        raise ValueError(
-            f"The x_range given to look for a peak doesn't contain any "
-            f"data.")
-
-    peak_arg = np.argmax(trimmed.y)
-
-    if x_value:
-        return trimmed.x[peak_arg], trimmed.y[peak_arg]
-    else:
-        return trimmed.y[peak_arg]
 
 
 def counting_freq(start_field, end_field, number_peaks):
@@ -387,7 +247,7 @@ class QO():
         if strip_nan:
             self.raw = self.raw.strip_nan()
         else:
-            if not np.all(np.isfinite(self.raw)):
+            if not np.all(np.isfinite(self.raw.values)):
                 raise ValueError(
                     f"The data contained non finite values and strip_nan"
                     f"was set to False.")
@@ -402,7 +262,7 @@ class QO():
                                             self.step_size)
         self.sub = subtract_func(self.interp)
         self.invert = invert_x(self.sub)
-        self.fft = FFT(self.invert, freq_cut=fft_cut)
+        self.fft = mfunc.fft(self.invert, freq_cut=fft_cut)
 
     def __len__(self):
         return self.interp.x.size
@@ -416,8 +276,8 @@ class QO():
     def peaks(self, n_peaks=4, as_Data=False, **kwargs):
         """Finds the largest Fourier Transform peaks.
 
-        This makes use of :func:`get_peaks` and the ``**kwargs`` are passed 
-        to :func:`scipy.signal.find_peaks`.
+        This makes use of :func:`.mfunc.get_peaks` and the ``**kwargs`` are 
+        passed to :func:`scipy.signal.find_peaks`.
 
         Parameters
         ----------
@@ -433,12 +293,12 @@ class QO():
             A two column numpy array with the with the location and the 
             amplitude of each peak.
         """
-        return get_peaks(self.fft, n_peaks, as_Data=as_Data, **kwargs)
+        return mfunc.get_peaks(self.fft, n_peaks, as_Data=as_Data, **kwargs)
 
     def peak_height(self, position, x_range, x_value=False):
         """Provides the hight of the highest FFT in a given range.
 
-        Makes use of the function :func:`peak_height`.
+        Makes use of the function :func:`.mfunc.peak_height`.
     
         Parameters
         ----------
@@ -459,14 +319,14 @@ class QO():
             The y_value of the peak. Which is the highest y value in a given 
             range of the data.
         """
-        return peak_height(self.fft, position, x_range, x_value=x_value)
+        return mfunc.peak_height(self.fft, position, x_range, x_value=x_value)
 
     def FFT_again(self, n=65536, window='hanning', freq_cut=0):
         """Recalculates the FFT.
 
         After recalcuating the FFT the new FFT is returned and also the 
         new FFT is saved to the :attr:`fft` attribute. This makes use of 
-        :func:`FFT`.
+        :func:`.mfunc.fft`.
 
         Parameters
         ----------
@@ -487,7 +347,8 @@ class QO():
             A data object with the FFT frequencies in the x values and the 
             amplitudes in the y values.
         """
-        self.fft = FFT(self.invert, n=n, window=window, freq_cut=freq_cut)
+        self.fft = mfunc.fft(self.invert, n=n, window=window, 
+            freq_cut=freq_cut)
         return self.fft
 
     def to_csv(self, file_name, sep=','):
@@ -655,7 +516,7 @@ class QO_av(QO):
         self.interp = mean(interp_list)
         self.sub = mean(sub_list)
         self.invert = invert_x(self.sub)
-        self.fft = FFT(self.invert, freq_cut=fft_cut)
+        self.fft = mfunc.FFT(self.invert, freq_cut=fft_cut)
 
     def __repr__(self):
         return  (

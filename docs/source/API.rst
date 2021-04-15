@@ -16,6 +16,30 @@ classes found in GigaAnalysis.
    :show-inheritance:
 
 
+.. automodule:: gigaanalysis.mfunc
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+.. automodule:: gigaanalysis.mfunc_ufunc
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+.. automodule:: gigaanalysis.mfunc_make
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+.. automodule:: gigaanalysis.mfunc_fft
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 .. automodule:: gigaanalysis.dset
    :members:
    :undoc-members:
