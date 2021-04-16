@@ -8,13 +8,181 @@ background subtraction and then Fourier transforming that inverse field.
 """
 
 from .data import *
-from . import mfunc
+from . import mfunc, const
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
+
+
+def lifshitz_kosevich(temps, field, e_mass, amp=1., as_Data=True):
+    """The Lifshitz-Kosevich formula
+    
+    This formula describes the change the the amplitude of quantum 
+    oscillations as the temperature is changed. This is most commonly used 
+    to calculate the effective mass of a carrier if a temperature dependence 
+    of quantum oscillations are taken.
+    The equation is of the form
+    ``r_lk = amp*chi/sinh(chi)`` where
+    ``chi = 2*pi*pi*kb*temps*me*e_mass/(hbar*qe*field)``.
+
+    Parameters
+    ----------
+    temps : numpy.ndarray
+        The value of temperatures to use to produce the LK curve.
+    field : float
+        The magnetic field value in Tesla of the applied field.
+    e_mass : float
+        The effective mass of the carriers in units of the electron mass.
+    amp : float, optional
+        The amplitude of the lowest temperature oscillations, the default 
+        is unity.
+    as_Data : bool, optional
+        If the default of `True` the result is returned as a :class:`.Data` 
+        object with the temps as the dependant variable. If false only the 
+        LK amplitudes are returned as a :class:`numpy.ndarray`.
+
+    Returns
+    -------
+    r_lk : Data, numpy.ndarray
+        The amplitude of the quantum oscillations as the temperature is 
+        changed.
+    """
+    try:
+        temps = np.asarray(temps)
+    except:
+        raise TypeError(
+            f"temps need to be an array or be able to be broadcast to one "
+            f"but was of type {type(temps)}.")
+
+    where0 = temps == 0
+    temps[where0] = 1.
+
+    chi = 2*np.pi*np.pi*const.kb()*temps*const.me()*e_mass/(
+        const.hbar()*const.qe()*field)
+
+    r_lk = amp*chi/np.sinh(chi)
+
+    temps[where0] = 0.
+    r_lk[where0] = amp
+
+
+    if as_Data:
+        return Data(temps, r_lk)
+    else:
+        r_lk
+
+
+def dingle_damping(fields, frequency, scatting, amp=1., as_Data=True):
+    """The Dingle Damping term from the LK formulas
+
+    This describes how the amplitude of quantum oscillations changes with 
+    applied field due to the scattering of electrons. The equation is of the 
+    form 
+    ``r_d = amp*exp(-sqrt(2*pi*pi*hbar*frequency/qe)/(fields*scatting))``
+
+    Parameters
+    ----------
+    fields : numpy.ndarray
+        The values of magnetic field to be used when calculating the 
+        amplitude.
+    frequency : float
+        The frequency of the quantum oscillation in Tesla.
+    scatting : float
+        The scatting given by the mean free path in meters.
+    amp : float, optional
+        The amplitude at infinite field, the default is unity.
+    as_Data : bool, optional
+        If the default of `True` the result is returned as a :class:`.Data` 
+        object with the fields as the dependant variable. If `False` only 
+        the amplitudes are returned as a :class:`numpy.ndarray`.
+
+    Returns
+    -------
+    r_d : Data, numpy.ndarray
+        The amplitude of the quantum oscillations as the field is changed.
+    """
+    try:
+        fields = np.asarray(fields)
+    except:
+        raise TypeError(
+            f"fields need to be an array or be able to be broadcast to one "
+            f"but was of type {type(fields)}.")
+
+    where0 = fields == 0
+    fields[where0] = 1.
+
+    r_d = amp*np.exp(
+        -np.sqrt(2*np.pi*np.pi*const.hbar()*frequency/const.qe())/
+        (fields*scatting))
+
+    fields[where0] = 0.
+    r_d[where0] = 0.
+
+    if as_Data:
+        return Data(fields, r_d)
+    else:
+        return r_d
+
+
+def quantum_oscilation(fields, frequency, amp, phase, damping, 
+        as_Data=True):
+    """Example Quantum Oscillation
+
+    This is a simple example quantum oscillation for fitting and such like. 
+    I say simple because the amplitude and the damping term has no frequency 
+    or temperature dependence. This means you need to be more careful when 
+    thinking about the units but also makes fitting easier. The equation is 
+    of the form 
+    ``quant_osc = 
+    amp*exp(-damping/fields)*sin(360*frequency/fields + phase)``
+
+    Parameters
+    ----------
+    fields : numpy.ndarray
+        The fields to produce the form quantum oscillation over.
+    frequency : float
+        The frequency of the quantum oscillation in Tesla.
+    amp : float
+        The amplitude of the quantum oscillation at infinite field.
+    phase : float
+        The phase of the quantum oscillation in degrees.
+    damping : float
+        The scatting damping of the quantum oscillation in Tesla.
+    as_Data : bool, optional
+        If the default of `True` the result is returned as a :class:`.Data` 
+        object with the fields as the dependant variable. If `False` only 
+        the amplitudes are returned as a :class:`numpy.ndarray`.
+
+    Returns
+    -------
+    quant_osc : Data, numpy.ndarray
+        The amplitude of the quantum oscillations as the field is changed.
+    """
+    try:
+        fields = np.asarray(fields)
+    except:
+        raise TypeError(
+            f"fields need to be an array or be able to be broadcast to one "
+            f"but was of type {type(fields)}.")
+    
+    where0 = fields == 0
+    fields[where0] = 1.
+    
+    amplitudes = amp*np.exp(-damping/fields)
+    wave = np.sin(np.radians(360*frequency/fields + phase))
+    
+    quant_osc = amplitudes*wave
+    
+    fields[where0] = 0.
+    quant_osc[where0] = 0.
+    
+    if as_Data:
+        return Data(fields, quant_osc)
+    else:
+        return quant_osc
 
 
 def invert_x(data):
