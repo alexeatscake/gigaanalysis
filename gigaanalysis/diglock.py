@@ -3,7 +3,8 @@
 
 This program is to recreate what a lock in would do for slower measurements
 but for our high field experiments. This is based around what the program in 
-DRS and WUH did.
+DRS and WUH did. This module also includes the :func:`scanning_fft` which is 
+used for PDO and TDO measurements.
 """
 
 from .data import *
@@ -13,12 +14,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import (blackmanharris,  # for find_freq
     hamming,  # for hamming_window
-    butter, filtfilt)  # for butter_bandpass and butter_bandpass_filter
+    butter, filtfilt,  # for butter_bandpass and butter_bandpass_filter
+    get_window)  # For sfft
 from numpy.fft import rfft, rfftfreq # for find_freq
 from scipy.optimize import minimize  # for find_phase, phase_in
 
 
-def polypeak(data, fit_point=3):
+def polypeak(signal, fit_point=3, low_f_skip=0):
     """Finds the largest value in a data set by fitting a parabola.
 
     It picks the largest point in the dataset and fits a quadratic parabola 
@@ -26,10 +28,12 @@ def polypeak(data, fit_point=3):
 
     Parameters
     ----------
-    data : numpy.ndarray
+    signal : numpy.ndarray
         The data to interpolate the highest value of.
     fit_point : int, optional
         The number of points to use in the fit. Needs to be odd.
+    low_f_skip : int, optional
+        The number of points to disregard at the start of the data.
 
     Returns
     -------
@@ -44,9 +48,9 @@ def polypeak(data, fit_point=3):
         ValueError(
             f"fit_point needs to be odd, was {fit_point} .")
     m = int((fit_point - 1)/2)  # Num of points either side
-    i = np.argmax(data)  # Find highest point in data
+    i = low_f_skip + np.argmax(signal[low_f_skip:])  # Find highest point
     # Fit a quadratic and get the x and y of the highest point
-    a, b, c = np.polyfit(np.arange(i-m,i+m+1), data[i-m:i+m+1], 2) 
+    a, b, c = np.polyfit(np.arange(i-m,i+m+1), signal[i-m:i+m+1], 2) 
     x = -0.5*b/a  
     y = a*x**2 + b*x + c
     return x, y
@@ -554,4 +558,89 @@ def spike_lock_in(signal, time_const, fs, freq, phase, sdl=2., region=1001):
                             window, mode='same')*np.sqrt(2)
     # step_size = int(np.ceil(len(window)/pp_window))
     return np.interp(times, times[good_points], locked_in)
+
+
+def scanning_fft(signal, fs, tseg, tstep, 
+        nfft=None, window='hamming', fit_point=5, low_f_skip=100,
+        tqdm_bar=None):
+    """Finds the changing dominate frequency of a oscillatory signal.
+
+    Finds how the frequency of a oscillatory signal changes with time. This 
+    is achieved by performing many FFTs over a small window of signal which 
+    is slid along the complete signal. This is useful for extracting the 
+    measurement from PDO and TDO experiments.
+
+    Parameters
+    ----------
+    signal : numpy.ndarray
+        The data to extract the signal from in the form of a 1d array.
+    fs : float
+        The sample frequency of the measurement signal in Hertz.
+    tseg : float
+        The length in time to examine for each FFT in seconds.
+    tstep : float
+        How far to shift the window between each FFT in seconds.
+    nfft : None, optional
+        The number of points to use for the FFT extra points will be zero 
+        padded. The number of points used by default is ``20*tseg*fs``, 
+        where ``tseg*fs`` is the length of the unpadded signal.
+    window : str, optional
+        The windowing function to used for the FFT that will be passed to 
+        :func:`scipy.signal.get_window`. THe default is 'hamming'.
+    fit_points : int, optional
+        The number of points to fit a parabola to identify the peak of the 
+        FFT. THe default is `5` and this is passed to :func:`polypeak`.
+    low_f_slip : int, optional
+        The number of points to skip when identifying the peak at the 
+        beginning of the FFT to ignore the low freq upturn. The default is 
+        `100` and this is passed to :func:`polypeak`.
+    tqdm_bar : tqdm.tqdm, optional
+        This function can be slow so a tqdm progress bar can be passed using 
+        this keyword which will be updated to show the progress of the 
+        calculation. This is done by
+        :: 
+            from tqdm import tqdm
+            with tqdm() as bar: 
+                res = scanning_fft(signal, fs, tseg, tstep, tqdm_bar=bar)
+
+    Returns
+    -------
+    times : numpy.ndarray
+        The midpoint of the time windows which the FFTs where taken at in 
+        seconds.
+    freqs : numpy.ndarray
+        The frequencies of the dominate oscillatory signal against time in 
+        Hertz.
+    amps : numpy.ndarray
+        The amplitude of the oscillatory signal from the FFT. This should be 
+        in the units of the signal.
+    """
+    nperseg = int(tseg*fs)
+    nstep = int(tstep*fs)
+    if nfft == None:
+        nfft = nperseg*20
+
+
+    ntimepoint = int((len(signal)-nperseg+nstep)/nstep)
+    times = (nperseg/2+np.arange(ntimepoint)*nstep)/fs
+    freqs_i = np.zeros(ntimepoint)
+    amps = np.zeros(ntimepoint)
+
+    window = get_window('hamming', nperseg)
+
+    if tqdm_bar is not None:
+        tqdm_bar.reset(total=ntimepoint)
+
+    for x in range(ntimepoint):
+        if tqdm_bar is not None:
+            tqdm_bar.update()
+        freqs_i[x], amps[x] = polypeak(
+            np.abs(
+                np.fft.rfft(signal[x*nstep:nperseg+x*nstep]*window, n=nfft)),
+            fit_point=fit_point, low_f_skip=low_f_skip)
+
+    freqs = freqs_i*fs/nfft
+    amps = 2*amps/np.average(window)/nperseg
+
+    return times, freqs, amps
 
