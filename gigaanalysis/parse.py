@@ -8,6 +8,7 @@ that take multiple measurements at each point in a sweep.
 """
 
 from .data import *
+from . import dset
 
 import numpy as np
 import pandas as pd
@@ -55,7 +56,7 @@ def cluster_group(data, normalise='constant', threshold=None,
     else:
         raise ValueError("Normalise needs to be 'constant', 'value', " 
             "or 'log'.")
-    if threshold == None:
+    if threshold is None:
         threshold = np.average(steps)
     elif relative_threshold:
         threshold = np.average(steps)*threshold
@@ -136,4 +137,59 @@ def group_average(data, groups, error=False, std_factor=True,
             return averages, errors
     else:
         return averages
+ 
+
+def unroll_dataset(data_set, look_up=None):
+    """This unpacks all the values in a data set into 3 arrays.
+
+    This splits the data from a data set into three, the x and y values and 
+    the values from the key. To covert the keys into something useful a 
+    dict can be provided as a look up table.
+
+    Parameters
+    ----------
+    data_set : dict of Data
+        The data set to unroll all the values from.
+    look_up : dict or pandas.Series, optional
+        This is a dictionary that converts the keys in the data_set into 
+        something to place in the variable array.
+
+    Returns
+    -------
+    independent : numpy.ndarray
+        The x values from all the :class:`.Data` objects.
+    dependant : numpy.ndarray
+        The y values from all the :class:`.Data` objects.
+    variable : numpy.ndarray
+        The corresponding keys from the data_set or values produced from 
+        passing them into the look up dictionary.
+    """
+    if look_up is None:
+        class self_dict():
+            def __getitem__(self, get): return get
+        
+        look_up = self_dict()
+    elif isinstance(look_up, (dict, pd.Series)):
+        pass
+    else:
+        raise TypeError(
+            f"If look up is provided need to be a dict was a "
+            f"{type(look_up)} instead.")
+    
+    if dset.check_set(data_set) != 1:
+        raise TypeError(
+            f"The data_set had multiple nested dictionaries instead "
+            f"of only one.")
+    
+    independent, dependant, variable = [], [], []
+    for key, dat in data_set.items():
+        independent.append(dat.x)
+        dependant.append(dat.y)
+        variable.append(np.full(len(dat), look_up[key]))
+    
+    independent = np.concatenate(independent)
+    dependant = np.concatenate(dependant)
+    variable = np.concatenate(variable)
+    
+    return independent, dependant, variable
 

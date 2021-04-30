@@ -275,7 +275,7 @@ def sin_fit(data, p0=None, offset=False, full=True, **kwargs):
         raise TypeError(
             f"data need to be a Data object but instead was {type(data)}.")
 
-    if p0 == None:
+    if p0 is None:
         pass
     elif len(p0) != 3 and not offset:
         raise ValueError(
@@ -332,7 +332,7 @@ def gaussian_fit(data, p0=None, offset=False, full=True, **kwargs):
         raise TypeError(
             f"data need to be a Data object but instead was {type(data)}.")
 
-    if p0 == None:
+    if p0 is None:
         pass
     elif len(p0) != 3 and not offset:
         raise ValueError(

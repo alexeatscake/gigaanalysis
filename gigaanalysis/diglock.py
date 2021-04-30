@@ -617,7 +617,7 @@ def scanning_fft(signal, fs, tseg, tstep,
     """
     nperseg = int(tseg*fs)
     nstep = int(tstep*fs)
-    if nfft == None:
+    if nfft is None:
         nfft = nperseg*20
 
 

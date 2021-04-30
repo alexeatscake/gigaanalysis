@@ -420,7 +420,7 @@ class QO():
                     f"The data contained non finite values and strip_nan"
                     f"was set to False.")
 
-        if step_size == None:
+        if step_size is None:
             self.step_size = (self.raw.max_x() - self.raw.min_x()
                 )/len(self.raw)/4
         else:
@@ -658,7 +658,7 @@ class QO_av(QO):
                         f"strip_nan was set to False."
                         f"Was was seen in data number {n}")
 
-            if step_size == None:
+            if step_size is None:
                 raw_steps.append(
                     (raw_sweep.max_x() - raw_sweep.min_x()
                     )/len(raw_sweep)/4)
@@ -667,7 +667,7 @@ class QO_av(QO):
         self.max_field = max_field
         self._bg_sub_func = subtract_func
   
-        if step_size == None:
+        if step_size is None:
             self.step_size = np.min(raw_steps)
         else:
             self.step_size = step_size
@@ -732,12 +732,12 @@ class QO_av(QO):
                 f"The raw_num is out of range. It was {raw_num} but there "
                 f"are only {len(self.raw)} sweeps in the raw data.")
 
-        if step_size != None:
+        if step_size is not None:
             to_step = step_size
         else:
             to_step = self.step_size
 
-        if fft_cut == None:
+        if fft_cut is None:
             fft_cut = self.fft.x[-1]
 
         return QO(self.raw[raw_num], self.min_field, self.max_field,

@@ -41,17 +41,25 @@ def check_set(data_set, meta_df=None, higher_key=()):
         Tuple with keys in used for the regression to start in a nested 
         dictionary.
 
+    Returns
+    -------
+    count : int
+        The number of layers of the data_set.
     """
+    if not isinstance(data_set, dict):
+        raise TypeError(
+            f"data_set was not a dict but instead a {type(data_set)}.")
     for key, val in data_set.items():
         new_key = (*higher_key, key)
         if isinstance(val, dict):
-            check_set(val, meta_df, new_key)
+            count = 1 + check_set(val, meta_df, new_key)
         elif not isinstance(val, Data):
             raise TypeError(
                 f"The dictioaries contain objects which are "
                 f"not dictionaires or Data objects. The object in "
                 f"key:{new_key}, was a {type(val)}.")
         elif meta_df is not None:
+            count = 1
             if isinstance(new_key, tuple) and len(new_key) == 1:
                 new_key = new_key[0]
             if new_key not in meta_df.index:
@@ -59,6 +67,9 @@ def check_set(data_set, meta_df=None, higher_key=()):
                     f"The meta DataFrame given did not have items "
                     f"which where in the data_set. The key missing "
                     f"was: {new_key}.")
+        else:
+            count = 1
+    return count
 
 
 def __label_hdf5_as_ga_set(file, location):

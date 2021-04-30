@@ -143,7 +143,7 @@ class Data():
         self.y = self.values[:, 1]  # The y data
         self.both = self.x, self.y  # Tuple of the data
 
-        if interp_full:
+        if interp_full is not None:
             self.to_even(interp_full)
 
 
@@ -787,7 +787,7 @@ class Data():
         If provided an axis keyword which operates so that if given
         ``axis.plot(self.x, self.y, *args, **kwargs)``.
         """
-        if axis == None:
+        if axis is None:
             plt.plot(self.x, self.y, *args, **kwargs)
         else:
             axis.plot(self.x, self.y, *args, **kwargs)
@@ -1387,7 +1387,7 @@ def gen_rand(n, func=None, seed=None, interp_full=None):
         np.cumsum(np.random.default_rng(seed).random((n, 2)), axis=0),
         interp_full=interp_full)
 
-    if func:
+    if func is not None:
         gen_data = gen_data.apply_y(func)
 
     return gen_data

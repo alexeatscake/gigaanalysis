@@ -193,12 +193,12 @@ def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
     maxB_arg = np.argmax(field)
     peak_field = field[maxB_arg]
 
-    if B_min != None and B_min > peak_field:
+    if B_min is not None and B_min > peak_field:
         raise ValueError(
             f"The maximum value of the field is smaller than the given "
             f"value of B_min.")
 
-    if B_min == None:
+    if B_min is None:
         pass
     elif side == 'down' and B_min > np.min(field[maxB_arg:]):
         pass
@@ -213,7 +213,7 @@ def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
 
     if side == 'down':
         startB_arg = maxB_arg
-        if B_min == None:
+        if B_min is None:
             endB_arg = None
         else:
             endB_arg = maxB_arg + \
@@ -221,7 +221,7 @@ def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
 
         B_slice = slice(endB_arg, startB_arg, -skip_num)
     elif side == 'up':
-        if B_min == None:
+        if B_min is None:
             startB_arg = None
         else:
             startB_arg = np.where(field>B_min)[0][0]
@@ -229,7 +229,7 @@ def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
         endB_arg = maxB_arg
         B_slice = slice(startB_arg, endB_arg, skip_num)
     elif side == 'both':
-        if B_min == None:
+        if B_min is None:
             startB_arg, endB_arg = None, None
         else:
             startB_arg = np.where(field>B_min)[0][0]
@@ -408,7 +408,7 @@ class PulsedLockIn():
         """This is just for checking that the lock in process has happened 
         before trying to output or manipulate the locked in data.
         """
-        if isinstance(self.loc_Volt, type(None)):
+        if self.loc_Volt is None:
             raise AttributeError(
                 f"The lock in process has not yet been performed. Please "
                 f"call the method lockin_Volt first.")
@@ -417,7 +417,7 @@ class PulsedLockIn():
         """This is just for checking that the lock in process has happened 
         before trying to output or manipulate the locked in data.
         """
-        if isinstance(self.loc_I, type(None)):
+        if self.loc_I is None:
             raise AttributeError(
                 f"The lock in process on the current has not yet been "
                 f"performed. Please call the method lockin_current first.")
@@ -439,7 +439,7 @@ class PulsedLockIn():
             This is in degrees.
         """
         self.time_const = time_const
-        if phase_shift != None:
+        if phase_shift is not None:
             self.phase_shift = phase_shift
         self.loc_Volt = diglock.ham_lock_in(self.Volt, time_const,
             self.fs, self.freq, self.phase + self.phase_shift,
@@ -494,7 +494,7 @@ class PulsedLockIn():
             compromised. The default is 1001.
         """
         self.time_const = time_const
-        if phase_shift != None:
+        if phase_shift is not None:
             self.phase_shift = phase_shift
         self.loc_Volt = diglock.spike_lock_in(self.Volt, time_const,
             self.fs, self.freq, self.phase + self.phase_shift,
