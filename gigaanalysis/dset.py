@@ -350,7 +350,7 @@ def hdf5_to_set(file_name, location='/'):
         'size', 'min_x', 'max_x'])
     with h5py.File(file_name, 'r') as file:
         data_set, meta_df = __read_hdf5_group(
-            file, data_set, meta_df)
+            file[location], data_set, meta_df)
     meta_df = __reindex_meta(
         meta_df, __count_layer(data_set))
     return data_set, meta_df

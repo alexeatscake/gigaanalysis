@@ -808,6 +808,30 @@ class Data():
             ).to_csv(filename, **kwargs)
 
 
+def swap_xy(data, **kwargs):
+    """Interchange the independent and dependent variables.
+    
+    This takes a :class:`.Data` object and returns a new one with the x and 
+    y variables swapped around. Keyword arguments are pass to the 
+    :class:`.Data` class.
+
+    Parameters
+    ----------
+    data : Data
+        The data to switch the x and y values.
+
+    Returns
+    -------
+    swapped_data : Data
+        A new :class:`.Data` object with x and y values switched.
+    """
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data needs to be a Data object but was instead {type(data)}")
+
+    return Data(data.y, data.x, **kwargs)
+
+
 def sum_data(data_list):
     """Preforms the sum of the y data a set of Data class objects.
     

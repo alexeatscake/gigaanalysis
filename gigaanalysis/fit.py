@@ -219,15 +219,24 @@ def poly_fit(data, order, full=True):
         raise TypeError(
             f"data need to be a Data object but instead was {type(data)}.")
 
-    popt, pcov = np.polyfit(data.x, data.y, order, cov=True)
-    ffunc = any_poly
+    if len(data) > order + 1:
+        popt, pcov = np.polyfit(data.x, data.y, order, cov=True)
+    elif len(data) == order + 1:
+        popt = np.polyfit(data.x, data.y, order, cov=False)
+        pcov = np.full((order+1, order+1), np.nan)
+    else:
+        raise ValueError(
+            f"The order of the polynomial needs to be more than 2 larger "
+            f"than the number of data points. There are {len(data)} points "
+            f"and is fitting a polynomial of order {order}.")
+
+    func = lambda *args: mfunc.make_poly(*args, as_Data=False)
     if full:
-        results = Data(data.x, ffunc(data.x, *popt))
+        results = mfunc.make_poly(data.x, *popt)
         residuals = data - results
     else:
         results, residuals = None, None
-    return Fit_result(ffunc, popt, pcov, results, residuals)
-
+    return Fit_result(func, popt, pcov, results, residuals)
 
 
 def sin_fit(data, p0=None, offset=False, full=True, **kwargs):

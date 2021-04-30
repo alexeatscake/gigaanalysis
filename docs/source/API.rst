@@ -58,6 +58,18 @@ classes found in GigaAnalysis.
    :show-inheritance:
 
 
+.. automodule:: gigaanalysis.qo
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+.. automodule:: gigaanalysis.htsc
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 .. automodule:: gigaanalysis.magnetism
    :members:
    :undoc-members:
@@ -65,12 +77,6 @@ classes found in GigaAnalysis.
 
 
 .. automodule:: gigaanalysis.heatc
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
-.. automodule:: gigaanalysis.qo
    :members:
    :undoc-members:
    :show-inheritance:
