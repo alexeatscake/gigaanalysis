@@ -158,7 +158,7 @@ def unroll_dataset(data_set, look_up=None):
     -------
     independent : numpy.ndarray
         The x values from all the :class:`.Data` objects.
-    dependant : numpy.ndarray
+    dependent : numpy.ndarray
         The y values from all the :class:`.Data` objects.
     variable : numpy.ndarray
         The corresponding keys from the data_set or values produced from 
@@ -181,15 +181,95 @@ def unroll_dataset(data_set, look_up=None):
             f"The data_set had multiple nested dictionaries instead "
             f"of only one.")
     
-    independent, dependant, variable = [], [], []
+    independent, dependent, variable = [], [], []
     for key, dat in data_set.items():
         independent.append(dat.x)
-        dependant.append(dat.y)
+        dependent.append(dat.y)
         variable.append(np.full(len(dat), look_up[key]))
     
     independent = np.concatenate(independent)
-    dependant = np.concatenate(dependant)
+    dependent = np.concatenate(dependent)
     variable = np.concatenate(variable)
     
-    return independent, dependant, variable
+    return independent, dependent, variable
 
+
+def roll_dataset(independent, dependent, variable, look_up=None,
+        strip_sort=True, drop_empty=False):
+    """This packs data from three arrays into a dataset.
+
+    This takes three one dimensional :class:`numpy.ndarray` and uses the 
+    last one to group the first two into data objects. The first array is 
+    used to for the independent variable and the second is used for the 
+    independent variable. A dictionary can also be provided as a look up to 
+    change the dataset keys.
+
+    Parameters
+    ----------
+    independent : numpy.ndarray
+        The x values to form all the :class:`.Data` objects.
+    dependent : numpy.ndarray
+        The y values to  form all the :class:`.Data` objects.
+    variable : numpy.ndarray
+        The corresponding values to group the values to the different 
+        :class:`Data` objects to form the data_set.
+    look_up : dict or pandas.Series, optional
+        This is a dictionary that converts the values in the variable array 
+        into keys that will be used in the dictionary. The default behaviour 
+        uses the values in the variable for the keys.
+    strip_sort : bool, optional
+        This is `True` by default and is passed to the `strip_sort` argument 
+        of the :class:`Data` when they are produced.
+    drop_empty : bool, optional
+        This is `False` by default and if `True` :class:`Data` objects are 
+        removed if they contain no data points. This would happen if all the 
+        values retrieved were NaNs and then strip_sort was applied.
+
+    Returns
+    -------
+    data_set : dict of Data
+        The data set produced by combining the three data sets.
+    """
+    if look_up is None:
+        class self_dict():
+            def __getitem__(self, get): return get
+        
+        look_up = self_dict()
+    elif isinstance(look_up, (dict, pd.Series)):
+        pass
+    else:
+        raise TypeError(
+            f"If look up is provided need to be a dict was a "
+            f"{type(look_up)} instead.")
+    
+    if not isinstance(variable, np.ndarray):
+        raise TypeError(
+            f"variable needs to be an numpy.ndarray but was a "
+            f"{type(variable)} instead.")
+    elif not isinstance(independent, np.ndarray):
+        raise TypeError(
+            f"independent needs to be an numpy.ndarray but was a "
+            f"{type(variable)} instead.")
+    elif not isinstance(dependent, np.ndarray):
+        raise TypeError(
+            f"dependent needs to be an numpy.ndarray but was a "
+            f"{type(dependent)} instead.")
+    elif independent.ndim != 1 or \
+            independent.shape != dependent.shape or \
+            independent.shape != variable.shape:
+        raise ValueError(
+            f"The three arrays need to be 1 dimensional and of the "
+            f"same shape. They had shapes {independent.shape}, "
+            f"{dependent.shape}, and {variable.shape}.")
+    
+    dataset = {}
+    for key in np.unique(variable):
+        dataset[look_up[key]] = Data(
+            independent[variable==key],
+            dependent[variable==key],
+            strip_sort=strip_sort)
+
+    if drop_empty:
+        dataset = dict(filter(lambda elm: len(elm[1])!=0, dataset.items()))
+
+    return dataset

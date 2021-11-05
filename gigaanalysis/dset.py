@@ -148,7 +148,7 @@ def __hdf5_set(file, data_set, meta_df, higher_key=(),
     for key, val in data_set.items():
         # remove non allowed characters ' ' and '/'
         # and sort keys and locations
-        key = key.replace(' ', '').replace('/', '')
+        key = str(key).replace(' ', '').replace('/', '')
         new_key = (*higher_key, key)
         new_loc = f"{location}{'/'.join(new_key)}"
         if isinstance(val, dict):  # if dict in dict call self
@@ -194,9 +194,12 @@ def set_to_hdf5(data_set, file_name, meta_df=None,
         If the function should overwrite existing HDF5 file. The default is 
         to not overwrite.
     """
+    if location != "/":  # In case the user forgets the "/" at the end
+        if location[-1] != "/":
+            location += "/"
     if not isinstance(data_set, dict):
         raise TypeError(
-            f"data_set needs to be a dict but is a {Type(data_set)}")
+            f"data_set needs to be a dict but is a {type(data_set)}")
     if meta_df is not None:
         if not isinstance(meta_df, pd.DataFrame):
             raise TypeError(
@@ -365,4 +368,223 @@ def hdf5_to_set(file_name, location='/'):
     meta_df = __reindex_meta(
         meta_df, __count_layer(data_set))
     return data_set, meta_df
+
+
+def array_to_hdf5(data, file_name, location, attributes=None, 
+        overwrite=False):
+    """Saves a numpy array to a HDF5 file.
+
+    This is for saving a plane :class:`numpy.ndarray` to a HDF5 using 
+    :class:`h5py.File`. This is meant to work in the same style as 
+    :func:`set_to_hdf5`. It also can save a set of attributes in the form of 
+    a dictionary.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        The data to save to the file in a numpy array.
+    file_name : str
+        The name of the HDF5 file to save the data to.
+    location : str
+        The location of the :class:`h5py.Dataset`, which is a string with 
+        the groups and the data set name separated by "/".
+    attributes : dict of {str: val}, optional
+        A dictionary of meta data to attach to the data set. The keys of the 
+        dictionary need to be `str`. Default is None and attaches no attributes
+        to the data set.
+    overwrite : bool, optional
+        If default of `False` the existing file is not overwritten and is 
+        instead added to. This will throw an error if trying to save to a 
+        location of an already existing dataset.
+    """
+    # Start with checking location specifier
+    if not isinstance(location, np.str):
+        raise TypeError(
+            f"location needs to be a string but was a "
+            f"{type(location)}")
+    location = location.replace(" ", "")
+    if location[-1] == "/":
+        raise ValueError(
+            "The location and the data set name need to spesified "
+            "no data set name was given after the last '/'")
+    if location[0] != "/":  # Same if they spesify the root group
+        location = "/" +location
+    # Check the data is a correct kind of np.array
+    if not isinstance(data, np.ndarray):
+        raise TypeError(
+            f"data needs to be a numpy array but is a {type(data)}")
+    if data.dtype == 'O':
+        raise TypeError(
+                f"The array contained python object type values but "
+                f"these cannot be saved to HDF5 files.")
+    # Check the attributes are the correct type
+    if attributes is not None:
+        if not isinstance(attributes, dict):
+            raise TypeError(
+                f"attributes needs to be a dict but was type "
+                f"{type(attributes)}")
+        if not all(isinstance(key, np.str) for key in attributes.keys()):
+            raise TypeError(
+                f"The keys for the attributes need to be all strings")
+    # Parse the location into groups and dset names
+    locs = location.split('/')
+    dset_name = locs[-1]
+    if len(locs) ==  2:
+        group_name = None
+    else:
+        group_name = "/".join(locs[:-1]) 
+    # Open File
+    read_write = 'w' if overwrite else 'a'
+    with h5py.File(file_name, read_write) as file:
+        if group_name is None:
+            file.create_dataset(dset_name, data=data)
+            dset = file[dset_name]
+        elif group_name in file:
+            file[group_name].create_dataset(dset_name, data=data)
+            dset = file[group_name][dset_name]
+        else:
+            file.create_group(group_name)
+            file[group_name].create_dataset(dset_name, data=data)
+            dset = file[group_name][dset_name]
+        if attributes is not None:
+            for prop, val in attributes.items():
+                dset.attrs[prop] = val
+
+
+def array_from_hdf5(file_name, location):
+    """This reads a dataset in a HDF5 file to a numpy array.
+
+    This function is to read the data saved using the :func:`array_to_hdf5`. 
+    It reads the data and the attributes using :class:`h5py.File` and 
+    returns the result.
+
+    Parameters
+    ----------
+    file_name : str
+        The name of the HDF5 file to be read.
+    location : str
+        The location of the dataset with the groups and dataset name 
+        separated by "/".
+
+    Returns
+    -------
+    data : numpy.ndarray
+        A numpy array containing the data in the data set.
+    attributes: dict
+        A dictionary containing the attributes of the data set that was 
+        read. If there was no attributes then the dictionary will be empty.
+    """
+    if not isinstance(location, np.str):
+        raise TypeError(
+            f"location need to be a string but was a {type(location)}")
+    if location[0] != "/":
+        location = "/" + location
+    with h5py.File(file_name, 'r') as file:
+        if location not in file:
+            raise ValueError(
+                f"This is not a valid location of a data set.")
+        if not isinstance(file[location], h5py.Dataset):
+            raise ValueError(
+                f"The spesified location is not a data set")
+        data = file[location][:]
+        attributes = dict(file[location].attrs.items())
+    return data, attributes
+
+
+
+def sort_dset(dataset, apply_key=None, sort_key=None, check_data=True):
+    """This sorts and formats the keys in a dataset.
+
+    This is useful after loading a dataset from a HDF5 file, as keys that 
+    were floats will have been set to strings and then loaded by the leading 
+    digit. This function can apply a function to each key and then sort them.
+
+    Parameters
+    ----------
+    dataset : recursive dict of Data
+        This is the dataset to sort which are nested dictionaries of Data 
+        objects.
+    apply_key : function or list of function, optional
+        This is a function that will be applied to the keys to reformat them 
+        before the are reordered. If a list is given then each function will 
+        be applied on each layer of the dataset in turn. If `None` then no 
+        function is applied. The default is `None`.
+    sort_key : function or list of function, optional
+        This is the key that is passed to `sorted` to sort the dataset 
+        based on its keys. If a list is given then each function will be 
+        applied to each layer of the dataset. If `None` then no key is passed 
+        and the default sorting behaviour is used. If the string 'pass' is 
+        given then no sorting is applied. The default is `None`.
+    check_data : bool, optional
+        Whether to check if the objects in the dict are :class:`Data` 
+        objects. The default is True.
+    
+    Returns
+    -------
+    dataset : recursive dict of Data
+        The dataset after the functions have been applied to the keys and the
+        keys and then they have been sorted.
+    """
+    if isinstance(dataset, dict):  # deal with dataset
+        pass
+    elif check_data and not isinstance(dataset, Data):
+        raise TypeError(
+            f"The dataset contains values other than gigaanalyis.Data "
+            f"objects. Contained {type(dataset)}. To turn off this check "
+            f"set check_data to False.")
+    else:
+        return dataset  # For recursion
+
+    if isinstance(apply_key, list):  # if apply_key a list
+        if len(apply_key) == 0:
+            raise ValueError(
+                f"The apply_key list was not as deep as the nested dataset.")
+        apply_list = apply_key[1:]
+        apply_key = apply_key[0]
+    else:
+        apply_list = None
+
+    if apply_key is None:  # check apply_key
+        apply_key = lambda x: x
+        if apply_list is None:
+            apply_list = apply_key
+    elif callable(apply_key):
+        if apply_list is None:
+            apply_list=apply_key
+    else:
+        raise TypeError(
+            f"apply_key needs to be callable or a list of callable "
+            f"functions but was {type(apply_key)}")
+
+    if isinstance(sort_key, list):  # if sort_ley a list
+        if len(sort_key) == 0:
+            raise ValueError(
+                f"The sort_key list was not as deep as the nested dataset.")
+        sort_list = sort_key[1:]
+        sort_key = sort_key[0]
+    else:
+        sort_list = None
+
+    if sort_key is None:  # check sort_key
+        pass
+    elif sort_key == "pass":
+        sort_key = lambda x: 0
+        if sort_list is None:
+            sort_list = sort_key
+    elif callable(sort_key):
+        if sort_list is None:
+            sort_list = sort_key
+    else:
+        raise TypeError(
+            f"sort_key needs to be callable or a list of callable "
+            f"functions but was {type(sort_key)}")
+    
+    # edit key and preform recursion on included data
+    dataset = {
+        apply_key(key):sort_dset(dat, apply_list, sort_list, check_data) \
+            for key, dat in dataset.items()}
+    # Sort by key and return
+    sorted_keys = sorted(dataset.keys(), key=sort_key) 
+    dataset = {key:dataset[key] for key in sorted_keys}
+    return dataset
 

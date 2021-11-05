@@ -795,7 +795,8 @@ class Data():
     def to_csv(self, filename, columns=["X", "Y"], **kwargs):
         """Saves the data as a simple csv
 
-        Uses :func:`pandas.DataFrame.to_csv` and kwargs are pass to it.
+        Uses :func:`pandas.DataFrame.to_csv` and kwargs are pass to it. The 
+        index keyword is set to False by default.
 
         Parameters
         ----------
@@ -804,6 +805,9 @@ class Data():
         columns : [str, str]
             The title of the two columns.
         """
+        if 'index' not in kwargs:
+            kwargs['index'] = False
+
         pd.DataFrame(self.values, columns=columns
             ).to_csv(filename, **kwargs)
 
@@ -830,6 +834,19 @@ def swap_xy(data, **kwargs):
             f"data needs to be a Data object but was instead {type(data)}")
 
     return Data(data.y, data.x, **kwargs)
+
+
+def empty_data():
+    """Generates an empty :class:`.Data` object.
+
+    This is useful for place holding, and takes no parameters.
+
+    Returns
+    -------
+    empty_data : Data
+        A Data object that contains no data points.
+    """
+    return Data(np.array([], dtype=np.float_).reshape(0, 2))
 
 
 def sum_data(data_list):
