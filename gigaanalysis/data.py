@@ -138,15 +138,46 @@ class Data():
                 values = values[np.argsort(values[:, 0]), :]
 
 
-        self.values = _as_float_array(values)   # All the data
-        self.x = self.values[:, 0]  # The x data
-        self.y = self.values[:, 1]  # The y data
-        self.both = self.x, self.y  # Tuple of the data
+        # all data in hidden attribute
+        self.__values = _as_float_array(values)
 
         if interp_full is not None:
             self.to_even(interp_full)
 
 
+    # Set up the attributes
+    __slots__ = ("__values",)
+
+    def __attribute_set(self, value):
+        raise AttributeError(
+            f"Can't set the attributes of a Data object directly. "
+            f"Use .set_x, .set_y, .set_data functions.")
+
+    def values(self):
+        return self.__values
+
+    values = property(values, __attribute_set, None,
+        "Two column numpy array with the x and y data in.")
+
+    def x(self):
+        return self.__values[:, 0]
+
+    x = property(x, __attribute_set, None,
+        "x data in a 1D numpy array.")
+
+    def y(self):
+        return self.__values[:, 1]
+
+    y = property(y, __attribute_set, None,
+        "y data in a 1D numpy array.")
+
+    def both(self):
+        return self.__values[:, 0], self.__values[:, 1]
+
+    both = property(both, __attribute_set, None,
+        "A two value tuple with the :attr:`x` and :attr:`y` in.")
+
+    # standard python methods
     def __str__(self):
         return np.array2string(self.values)
 
@@ -166,6 +197,8 @@ class Data():
     # This is so that the user need to specify .x or .y when acting 
     # with numpy functions.
 
+
+    # For mathematical operations
     def __maths_check(self, other, operation,):
         """This performs the error checking on the standard operators
 
@@ -296,6 +329,7 @@ class Data():
         """
         return iter(self.values)
 
+    # For indexing behaviour
     def __index_check(self, k):
         """Check an index given if it is correct type and size.
         
@@ -358,92 +392,128 @@ class Data():
             "Data objects do not allow item assignment. For this "
             "functionality see .set_x, .set_y, and .set_data.")
 
-    def set_x(self, k, v):
+    def set_x(self, idx, val):
         """This is used for setting x values.
+
+        Works similarly to ``Data.x[idx] = val`` but with more error 
+        checking. The previous code would also work (and be faster) but 
+        more care should be taken. The built in function 
+        :func:`slice(start, end, step)` maybe useful.
 
         Parameters
         ----------
-        k : slice
+        idx : slice, int
             Objects that can be passed to a :class:`numpy.ndarray` as 
             an index.
-        v : numpy.ndarray
-            The values to assign to the indexed values. 
+        val : numpy.ndarray
+            The values to assign to the indexed x values. 
         """
-        if isinstance(v, Data):
+        if isinstance(val, Data):
             raise TypeError(
                 "Cannot set the object type with a Data object.")
-        self.__index_check(k)
+        self.__index_check(idx)
         new_x = self.x
-        new_x[k] = v
+        new_x[idx] = val
         self.__init__(new_x, self.y)
 
-    def set_y(self, k, v):
-        """This is used for setting x values.
+    def set_y(self, idx, val):
+        """This is used for setting y values.
+
+        Works similarly to ``Data.y[idx] = val`` but with more error 
+        checking. The previous code would also work (and be faster) but 
+        more care should be taken. The built in function 
+        :func:`slice(start, end, step)` maybe useful.
 
         Parameters
         ----------
-        k : slice
+        idx : slice, int
             Objects that can be passed to a :class:`numpy.ndarray` as 
             an index.
-        v : numpy.ndarray
-            The values to assign to the indexed values. 
+        val : numpy.ndarray
+            The values to assign to the indexed y values. 
         """
-        if isinstance(v, Data):
+        if isinstance(val, Data):
             raise TypeError(
                 "Cannot set the object type with a Data object.")
-        self.__index_check(k)
+        self.__index_check(idx)
         new_y = self.y
-        new_y[k] = v
+        new_y[idx] = val
         self.__init__(self.x, new_y)
 
-    def set_data(self, k, v):
+    def set_data(self, idx, val):
         """This is used for setting x and y values.
+
+        Works similarly to ``Data.values[idx] = val`` but with more error 
+        checking. The previous code would also work (and be faster) but 
+        more care should be taken. The built in function 
+        :func:`slice(start, end, step)` maybe useful.
 
         Parameters
         ----------
-        k : slice
+        idx : slice, int
             Objects that can be passed to a :class:`numpy.ndarray` as 
             an index.
-        v : numpy.ndarray, Data
+        val : numpy.ndarray, Data
             The values to assign to the indexed values. This can only be a
             two column :class:`numpy.ndarray` or a :class:`Data` object.
         """
-        if self.__index_check(k):
+        if self.__index_check(idx):
             size = 2
         else:
-            size = self.values[k].size
-        if not isinstance(v, (Data, np.ndarray)):
+            size = self.values[idx].size
+        if not isinstance(val, (Data, np.ndarray)):
             raise TypeError(
                 f"The value to assign data must be a data object or a two "
-                f"column numpy array. The type give was {type(v)}.")
-        elif isinstance(v, Data):
-            if size != v.values.size:
+                f"column numpy array. The type give was {type(val)}.")
+        elif isinstance(val, Data):
+            if size != val.values.size:
                 raise ValueError(
                     f"The Data to set is a different size to the Data "
                     f"object given. The size to index was {size/2} "
-                    f"while the data to set was {v.values.size/2}.")
+                    f"while the data to set was {val.values.size/2}.")
             else:
                 new_data = self.values
-                new_data[k] = v.values
-        elif v.ndim != 2:
+                new_data[idx] = val.values
+        elif val.ndim != 2:
             raise ValueError(
-                f"The dimension of the numpy array to set two is not "
+                f"The dimension of the numpy array to set to is not "
                 f"the correct shape. Needs to be a two column array shape "
-                f"given was {v.shape}.")
-        elif v.shape[1] != 2:
+                f"given was {val.shape}.")
+        elif val.shape[1] != 2:
             raise ValueError(
-                f"The dimension of the numpy array to set two does not "
+                f"The dimension of the numpy array to set to does not "
                 f"have two columns. Needs to be a two column array shape "
-                f"given was {v.shape}.")
-        elif v.size != size:
+                f"given was {val.shape}.")
+        elif val.size != size:
             raise ValueError(
                 f"The Data to set is a different size to the numpy "
                 f"array given. The size to index was {size/2} "
-                f"while the data to set was {v.size/2}.")
+                f"while the data to set was {val.size/2}.")
         else:
             new_data = self.values
-            new_data[k] = v
+            new_data[idx] = val
         self.__init__(new_data)
+
+    # Simple useful methods
+    def strip_nan(self):
+        """This removes any row which has a nan or infinite values in.
+        
+        Returns
+        -------
+        stripped_data : Data
+            Data class without non-finite values in.
+        """
+        return Data(self.values[np.isfinite(self.values).all(axis=1)])
+
+    def sort(self):
+        """Sorts the data set in x and returns the new array.
+
+        Returns
+        -------
+        sorted_data : Data
+            A Data class with the sorted data.
+        """
+        return Data(self.values[np.argsort(self.x), :])
 
     def min_x(self):
         """This provides the lowest value of x
@@ -473,7 +543,28 @@ class Data():
         x_max : float
             The average spacing in the x data
         """
-        return (self.max_x() - self.min_x())/len(self)    
+        return (self.max_x() - self.min_x())/len(self)
+
+    def x_cut(self, x_min, x_max):
+        """This cuts the data to a region between x_min and x_max.
+        
+        Parameters
+        ----------    
+        x_min : float
+            The minimal x value to cut the data.
+        x_max : float
+            The maximal x value to cut the data.
+        
+        Returns
+        -------
+        cut_data : Data    
+            A data object with the values cut to the given x range.
+        """
+        if x_min > x_max:
+            raise ValueError('x_min should be smaller than x_max')
+        return Data(self.values[
+                    np.searchsorted(self.x, x_min, side='left'):
+                    np.searchsorted(self.x, x_max, side='right'), :])
 
     def y_from_x(self, x_val, bounds_error=True, kind='linear'):
         """Gives the y value for a certain x value or set of x values.
@@ -508,47 +599,69 @@ class Data():
         else:
             return float(y_val)
 
-    def x_cut(self, x_min, x_max):
-        """This cuts the data to a region between x_min and x_max.
-        
+
+    def apply_x(self, function):
+        """This takes a function and applies it to the x values.
+
         Parameters
-        ----------    
-        x_min : float
-            The minimal x value to cut the data.
-        x_max : float
-            The maximal x value to cut the data.
+        ----------
+        function : Callable
+            The function to apply to the x values.
         
         Returns
         -------
-        cut_data : Data    
-            A data object with the values cut to the given x range.
+        transformed_data
+            Data class with new x values.
         """
-        if x_min > x_max:
-            raise ValueError('x_min should be smaller than x_max')
-        return Data(self.values[
-                    np.searchsorted(self.x, x_min, side='left'):
-                    np.searchsorted(self.x, x_max, side='right'), :])
+        return Data(function(self.x), self.y)
 
-    def strip_nan(self):
-        """This removes any row which has a nan or infinite values in.
+    def apply_y(self, function):
+        """This takes a function and applies it to the y values.
+
+        Parameters
+        ----------
+        function : Callable
+            The function to apply to the y values.
         
         Returns
         -------
-        stripped_data : Data
-            Data class without non-finite values in.
+        transformed_data
+            Data class with new y values.
         """
-        return Data(self.values[np.isfinite(self.values).all(axis=1)])
+        return Data(self.x, function(self.y))
 
-    def sort(self):
-        """Sorts the data set in x and returns the new array.
+    def append(self, new_data, in_place=False):
+        """This adds values to the end of the data object.
+
+        Parameters
+        ----------
+        new_data : Data
+            These are the values to add onto the end of the data object
+        in_place : bool, optional
+            Weather to edit the object or to return a new one. The default 
+            is `False` which returns a new object.
 
         Returns
         -------
-        sorted_data : Data
-            A Data class with the sorted data.
+        combined_data : Data
+            If in_place is `False` then a new Data object is returned.
         """
-        return Data(self.values[np.argsort(self.x), :])
+        if isinstance(new_data, Data):
+            pass
+        else:
+            try:
+                new_data = Data(new_data)
+            except:
+                raise ValueError(
+                    f"The new_data to append was not a Data object or "
+                    f"could be cast to one. Was of type {type(new_data)}")
+        new_vals = np.append(self.values, new_data.values, axis=0)
+        if in_place:
+            self.__init__(new_vals)
+        else:
+            return Data(new_vals)
 
+    # Methods for Interpolation of Data 
     def interp_range(self, min_x, max_x, 
         step_size=None, num_points=None, shift_step=True,
         kind='linear'):
@@ -718,67 +831,7 @@ class Data():
             step_size=step_size, shift_step=shift_step,
             kind=kind,).values)
 
-    def apply_x(self, function):
-        """This takes a function and applies it to the x values.
-
-        Parameters
-        ----------
-        function : Callable
-            The function to apply to the x values.
-        
-        Returns
-        -------
-        transformed_data
-            Data class with new x values.
-        """
-        return Data(function(self.x), self.y)
-
-    def apply_y(self, function):
-        """This takes a function and applies it to the y values.
-
-        Parameters
-        ----------
-        function : Callable
-            The function to apply to the y values.
-        
-        Returns
-        -------
-        transformed_data
-            Data class with new y values.
-        """
-        return Data(self.x, function(self.y))
-
-    def append(self, new_data, in_place=False):
-        """This adds values to the end of the data object.
-
-        Parameters
-        ----------
-        new_data : Data
-            These are the values to add onto the end of the data object
-        in_place : bool, optional
-            Weather to edit the object or to return a new one. The default 
-            is `False` which returns a new object.
-
-        Returns
-        -------
-        combined_data : Data
-            If in_place is `False` then a new Data object is returned.
-        """
-        if isinstance(new_data, Data):
-            pass
-        else:
-            try:
-                new_data = Data(new_data)
-            except:
-                raise ValueError(
-                    f"The new_data to append was not a Data object or "
-                    f"could be cast to one. Was of type {type(new_data)}")
-        new_vals = np.append(self.values, new_data.values, axis=0)
-        if in_place:
-            self.__init__(new_vals)
-        else:
-            return Data(new_vals)
-
+    # Plotting Method
     def plot(self, *args, axis=None, **kwargs):
         """Simple plotting utility
         
@@ -792,6 +845,7 @@ class Data():
         else:
             axis.plot(self.x, self.y, *args, **kwargs)
 
+    # Saving Method
     def to_csv(self, filename, columns=["X", "Y"], **kwargs):
         """Saves the data as a simple csv
 
