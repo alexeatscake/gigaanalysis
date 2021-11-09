@@ -166,7 +166,7 @@ def __hdf5_set(file, data_set, meta_df, higher_key=(),
 
 
 def set_to_hdf5(data_set, file_name, meta_df=None,
-                location="/", overwrite=False):
+                location="/", overwrite=False, info_attr=None):
     """This saves a data set to a HDF5 file.
 
     This saves a data set of made of nested :class:`dict` of 
@@ -193,6 +193,9 @@ def set_to_hdf5(data_set, file_name, meta_df=None,
     overwrite : bool, optional
         If the function should overwrite existing HDF5 file. The default is 
         to not overwrite.
+    info_attr : str, optional
+        If a string is given this is set as an HDF5 attribute to group. This 
+        can hold a description of data if required.
     """
     if location != "/":  # In case the user forgets the "/" at the end
         if location[-1] != "/":
@@ -210,7 +213,8 @@ def set_to_hdf5(data_set, file_name, meta_df=None,
     with h5py.File(file_name, read_write) as file:
         __label_hdf5_as_ga_set(file, location)
         __hdf5_set(file, data_set, meta_df, location=location)
-            
+        if isinstance(info_attr, str):
+            file[location].attrs['info'] = info_attr
 
 def __print_hdf5_group(group):
     """A recursive function to call used by :func:`print_hdf5`.
