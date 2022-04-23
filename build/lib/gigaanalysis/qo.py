@@ -391,8 +391,7 @@ class QO():
         The steps in field calculated in the interpolation.
     """
     def __init__(self, data, min_field, max_field, subtract_func,
-            step_size=None, fft_cut=0, strip_nan=False):
-        # Set up Class
+                step_size=None, fft_cut=0, strip_nan=False):
         if type(data) != Data:
             try:
                 data = Data(data)
@@ -623,7 +622,6 @@ class QO_av(QO):
     """
     def __init__(self, data_list, min_field, max_field, subtract_func,
             step_size=None, fft_cut=0, strip_nan=False):
-        # Set up class
         if type(data_list) != list:
             raise TypeError(
                 f"data_list was not in the form of a list. "

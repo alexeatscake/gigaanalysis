@@ -95,8 +95,7 @@ class Data():
 
     """
     def __init__(self, values, split_y=None, strip_sort=False,
-            interp_full=None):
-        # Set up Class
+                 interp_full=None):
         if isinstance(values, Data):
             values = values.values  # If you pass a Data object to the class
 

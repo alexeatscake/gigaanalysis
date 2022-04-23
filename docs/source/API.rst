@@ -63,6 +63,10 @@ classes found in GigaAnalysis.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: gigaanalysis.contour
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 .. automodule:: gigaanalysis.htsc
    :members:
