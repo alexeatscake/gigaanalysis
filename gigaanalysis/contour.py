@@ -53,11 +53,12 @@ class GP_map():
 
     Parameters
     ----------
-    dataset : dict of {float:Data}
+    dataset : dict of {float:Data} or numpy.ndarray
         The data to perform the interpolation on. This can be in the form of 
         a gigaanalysis dataset where the keys of the dictionaries are 
-        floats. This will then be unrolled using 
-        :func:`parse.unroll_dataset`.
+        floats (unless 'look_up' is used). This will then be unrolled using 
+        :func:`parse.unroll_dataset`. A three column numpy array can also be 
+        provided with the x, y, and z values in each respective column.
     gen_x : numpy.ndarray
         A 1D numpy array with the x values to interpolate.
     gen_y : numpy.ndarray
@@ -66,11 +67,24 @@ class GP_map():
         If default of `False` then the keys of the array are used as the x 
         values, and the x values of the :class:`.Data` objects are used as 
         the y values. To swap these two roles set key_y to `True`.
-    normalise_xy : bool, optional
+    normalise_xy : bool or tuple, optional
         If default of 'True' then the x y values are normalised to the range 
         0 to 1. This is useful for the kernel to deal with the probable 
         disparity of units in the two directions. If 'False' then this is 
-        not done.
+        not done. A tuple of two floats can be provided instead which the x 
+        and y values will be normalised to instead of range unity. This can 
+        be useful for weighting the units in an euclidean kernel.
+    look_up : dict, optional
+        This is a dictionary with all the keys that match the keys in the 
+        dataset and values which are floats to be used for the x values. 
+        This is passed to :func:`parse.unroll_dataset`. Default is `None` 
+        and then keys are used as the values.
+    even_space_y : float, optional
+        If a float is provided then the independent data in the gigaanalysis 
+        data objects is evenly spaced using :meth:`Data.interp_step`. This 
+        is useful if more finely spaced data points shouldn't be given more 
+        weight in the calculation. The default is none and then the original 
+        data is used.
 
     Attributes
     ----------
@@ -105,23 +119,66 @@ class GP_map():
         A 2D array with the interpolated values produced.
     """
     def __init__(self, dataset, gen_x, gen_y, 
-            key_y=False, normalise_xy=True):
+            key_y=False, normalise_xy=True, look_up=None, even_space_y=None):
         # Set up class
+        try:
+            gen_x = np.asarray(gen_x)
+        except:
+            raise ValueError(
+                f"gen_x need to be a 1D numpy array but was of type "
+                f"{type(gen_x)}")
+        if gen_x.ndim != 1:
+            raise ValueError(
+                f"gen_x needs to be a 1D numpy array, but was of shape "
+                f"{gen_x.shape}")
+
+        try:
+            gen_y = np.asarray(gen_y)
+        except:
+            raise ValueError(
+                f"gen_y need to be a 1D numpy array but was of type "
+                f"{type(gen_y)}")
+        if gen_y.ndim != 1:
+            raise ValueError(
+                f"gen_y needs to be a 1D numpy array, but was of shape "
+                f"{gen_y.shape}")
+
+
         self.gen_x, self.gen_y = gen_x, gen_y
-        
-        self.input_y, self.input_z, self.input_x = \
-            ga.parse.unroll_dataset(dataset)
-        
-        if key_y:
-            self.input_x, self.input_y = self.input_y, self.input_x
+
+        if isinstance(dataset, dict) and \
+                np.all([isinstance(dat, Data) for dat in dataset.values()]):
+            if even_space_y is not None:
+                dataset = {key:dat.interp_step(even_space_y) \
+                    for key, dat in dataset.items()}
+
+            self.input_y, self.input_z, self.input_x = \
+                parse.unroll_dataset(dataset, look_up=look_up)
+            self.input_x = self.input_x.astype(np.float_)
+            if key_y:
+                self.input_x, self.input_y = self.input_y, self.input_x
+        elif isinstance(dataset, np.ndarray) and dataset.ndim == 2 \
+                and dataset.shape[1] == 3:
+            self.input_x, self.input_y, self.input_z = dataset.T
+        else:
+            raise ValueError(
+                f"dataset needs to be a dict of Data objects or a 3 column "
+                f"numpy array but was of type {type(dataset)}")
+
         
         self.gen_xx, self.gen_yy = np.meshgrid(gen_x, gen_y)
         
         if normalise_xy:
-            self.input_x = _norm_array(self.input_x, self.gen_x)
-            self.input_y = _norm_array(self.input_y, self.gen_y)
-            self.gen_xx = _norm_array(self.gen_xx, self.gen_x)
-            self.gen_yy = _norm_array(self.gen_yy, self.gen_y)
+            if isinstance(normalise_xy, (tuple, list)) and \
+                    len(normalise_xy) == 2:
+                norx, nory = normalise_xy
+            else:
+                norx, nory = 1., 1.
+            
+            self.input_x = norx*_norm_array(self.input_x, self.gen_x)
+            self.input_y = nory*_norm_array(self.input_y, self.gen_y)
+            self.gen_xx = norx*_norm_array(self.gen_xx, self.gen_x)
+            self.gen_yy = nory*_norm_array(self.gen_yy, self.gen_y)
         
         self.kernel = None
         self.white_noise = None
@@ -202,7 +259,10 @@ class GP_map():
         """Calculates the kernel matrix inverse.
         """
         if self.kernel is None:
-            raise AttributeError("Need to set kernel before hand.")
+            raise AttributeError(
+                "A kernel needs to set a kernel before the prediction can "
+                "be preformed. This can be done with either the method "
+                "set_distance_kernel or set_xy_kernel.")
             
         self.kmat_inv = np.linalg.inv(
             self.kernel(self.input_x, self.input_y, 
@@ -233,7 +293,10 @@ class GP_map():
 
         """
         if self.kernel is None:
-            raise AttributeError("Need to set a kernel before hand.")
+            raise AttributeError(
+                "A kernel needs to set a kernel before the prediction can "
+                "be preformed. This can be done with either the method "
+                "set_distance_kernel or set_xy_kernel.")
         
         self._make_kmat_inv()
         
@@ -269,7 +332,11 @@ class GP_map():
             the convex hull. A higher tolerance means more points will be 
             included. The default is ``10**(-9)``.
         """
-        
+        if self.predict_z is None:
+            raise AttributeError(
+                "The result needs to be generated using the predict "
+                "method before the result can be cut to a hull.")
+
         hull = ConvexHull(np.concatenate(
             [self.input_x[:, None], self.input_y[:, None]], axis=1))
         hx, hy, ho = hull.equations.T
@@ -301,6 +368,10 @@ class GP_map():
             A 2D array of the z values. This is the same as 
             :attr:`predict_z`.
         """
+        if self.predict_z is None:
+            raise AttributeError(
+                "The result needs to be generated using the predict "
+                "method before the result can be plotted.")
         r_gen_xx, r_gen_yy = np.meshgrid(self.gen_x, self.gen_y)
         
         return r_gen_xx, r_gen_yy, self.predict_z
@@ -317,7 +388,7 @@ class GP_map():
         plt.contourf(*self.plotting_arrays(), **kwargs)
         plt.colorbar(**colorbar_kwargs)
         
-    def plot_contor(self, **kwargs):
+    def plot_contor(self, colorbar_kwargs={}, **kwargs):
         """Plot the generated data as a contour map
 
         This makes use of :func:`matplotlib.pyplot.contor` and keyword 

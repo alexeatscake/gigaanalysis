@@ -959,6 +959,83 @@ def mean(data_list):
     """
     return sum_data(data_list)/len(data_list)
 
+def _fit_one_y(data, x_value, x_range, poly_deg):
+    """A function used by :func:`y_from_fit` that calculates the y value 
+    from one x value.
+    """
+    xs, ys = data.x_cut(x_value - x_range/2, x_value + x_range/2).both
+    xs = xs - x_value
+    if len(xs) + 1 <= poly_deg:
+        raise ValueError(
+            f"There was only {len(xs)} in the provided range which is not "
+            f"enough to fit a {poly_deg} order polynomial.")
+    return np.polyfit(xs, ys, poly_deg)[-1]
+
+def y_from_fit(data, x_value, x_range, poly_deg=1, as_data=False):
+    """Fits a polynomial over a range to interpolate a given value.
+
+    This makes use of :func:`numpy.polyfit` to find an interpolated value of 
+    y form a data object and a given x value.
+
+    Parameters
+    ----------
+    data : Data
+        The data to interpolate the value from. Should be a sorted data 
+        object.
+    x_value : float or numpy.ndarray
+        The value of the independent to obtain the associated dependent 
+        variable.
+    x_range : float
+        The range of independent variables to perform the fit over.
+    poly_deg : int, optional
+        The order of the polynomial to use when fitting to find the result. 
+        The default is `1` which is a linear fit.
+    as_data : bool, optional
+        If default of False y values are given as an float or an array. If 
+        `True` then a Data object is returned.
+
+    Returns
+    -------
+    y_value : float, numpy.ndarray, or Data
+        The y values obtained at the associated value of x for the fit 
+        performed. The type depends if multiple points are requested and if 
+        'as_data` is set.
+    """
+    if not isinstance(data, Data):
+        raise TypeError(
+            f"data needs to be a Data object but was a {type(data)}.")
+    elif not isinstance(x_range, (int, float, np.int_, np.float_)):
+        raise TypeError(
+            f"x_range needs to be a float but was a {type(x_range)}")
+    elif not isinstance(poly_deg, (int, np.int_)):
+        raise TypeError(
+            f"poly_deg needs to be a int but was a {type(poly_deg)}")
+
+    x_value = np.asarray(x_value)
+    if x_value.dtype != np.float_ and x_value.dtype != np.int_:
+        raise TypeError(
+            f"x_value needs to be of float type but was a {x_value.dtype}")
+    elif x_value.ndim > 1:
+        raise TypeError(
+            f"x_value can a float or a 1D array like of floats but was of "
+            f"shape {x_value.shape}")
+
+    if x_value.size == 1:
+        if not as_data:
+            return _fit_one_y(data, x_value, x_range, poly_deg)
+        else:
+            return Data(
+                [[x_value, _fit_one_y(data, x_value, x_range, poly_deg)]])
+    elif as_data:
+        return Data(x_value, np.array(
+            [_fit_one_y(data, xv, x_range, poly_deg) for xv in x_value]))
+    else:
+        return np.array([_fit_one_y(data, xv, x_range, poly_deg) \
+            for xv in x_value])
+
+
+
+
 
 def collect_y_values(data_list):
     """Collates the y values into a array from a collection of Data objects.
