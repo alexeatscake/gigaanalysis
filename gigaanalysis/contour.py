@@ -118,8 +118,8 @@ class GP_map():
     predict_z : numpy.ndarray
         A 2D array with the interpolated values produced.
     """
-    def __init__(self, dataset, gen_x, gen_y, 
-            key_y=False, normalise_xy=True, look_up=None, even_space_y=None):
+    def __init__(self, dataset, gen_x, gen_y, key_y=False, 
+            normalise_xy=True, look_up=None, even_space_y=None):
         # Set up class
         try:
             gen_x = np.asarray(gen_x)
@@ -410,4 +410,130 @@ class GP_map():
         """
         plt.scatter(self.input_x, self.input_y, c=self.input_z, **kwargs)
         plt.colorbar()
+
+
+def gaussian_kernel(x1, y1, x2, y2, const=0., amp=1., length=1.):
+    """A Gaussian kernel for contour fitting.
+
+    This is a simple Gaussian kernel for use with 
+    :meth:`GP_map.set_xy_kernel`. It has an equation of the form
+    ``K = const + amp*exp(((x1 - x2)**2 + (y1 - y2)**2)/length**2)''. 
+    The keyword arguments can be set when they are passed through 
+    :meth:`GP_map.set_xy_kernel`.
+
+    Parameters
+    ----------
+    x1: numpy.ndarray
+        The four arguments are arrays which contain the x and y values from 
+        the points to generate the appropriate kernel matrix. These arrays 
+        are all the same size.
+    y1 : numpy.ndarray
+        See above.
+    x2 : numpy.ndarray
+        See above.
+    y2 : numpy.ndarray
+        See above.
+    const : float, optional
+        A constant term that changes the background level. Default is ``0``
+    amp : float, optional
+        The amplitude of the Gaussian. The default is ``1``
+    length : float, optional
+        The length scale of the Gaussian. The default is ``1``
+
+    Returns
+    -------
+    kernel_mat : numpy.ndarray
+        A :class:`numpy.ndarray` the same size as the input arrays with the 
+        kernel matrix elements.
+
+    """
+    return const + amp*np.exp(((x1 - x2)**2 + (y1 - y2)**2)/2/length**2)
+
+
+def linear_kernel(x1, y1, x2, y2, const=1., amp=1.):
+    """A linear kernel for contour fitting.
+
+    This is a simple linear kernel for use with 
+    :meth:`GP_map.set_xy_kernel`. It has an equation of the form
+    ``K = const + amp*(((x1 - x2)**2 + 
+    (y1 - y2)**2)/2/length**2/scale)**scale``. The keyword arguments can be 
+    set when they are passed through :meth:`GP_map.set_xy_kernel`. There are 
+    much faster ways of doing this than with Gaussian processes the utility 
+    of this function is to be combined with others.
+
+    Parameters
+    ----------
+    x1: numpy.ndarray
+        The four arguments are arrays which contain the x and y values from 
+        the points to generate the appropriate kernel matrix. These arrays 
+        are all the same size.
+    y1 : numpy.ndarray
+        See above.
+    x2 : numpy.ndarray
+        See above.
+    y2 : numpy.ndarray
+        See above.
+    const : float, optional
+        A constant term that changes the background level. The default 
+        is ``0``
+    amp : float, optional
+        The amplitude of the linear term. The default is ``1``
+
+    Returns
+    -------
+    kernel_mat : numpy.ndarray
+        A :class:`numpy.ndarray` the same size as the input arrays with the 
+        kernel matrix elements.
+
+    """
+    return const + amp*x1*x2 + amp*y1*y2
+
+
+def rational_quadratic_kernel(x1, y1, x2, y2, const=0., amp=1., length=1.,
+    scale=1.):
+    """A rational quadratic kernel for contour fitting.
+
+    This is a rational quadratic kernel for use with 
+    :meth:`GP_map.set_xy_kernel`. It has an equation of the form
+    It has an equation of the form
+    ``K = const + amp*(1 + ((x1 - x2)**2 + 
+    (y1 - y2)**2)/2/length**2/scale)**scale``. The keyword arguments can be 
+    set when they are passed through :meth:`GP_map.set_xy_kernel`. This can 
+    be thought of a combination of many different Gaussian kernels to 
+    different powers. These are the same when the scale goes to infinity.
+
+    Parameters
+    ----------
+    x1: numpy.ndarray
+        The four arguments are arrays which contain the x and y values from 
+        the points to generate the appropriate kernel matrix. These arrays 
+        are all the same size.
+    y1 : numpy.ndarray
+        See above.
+    x2 : numpy.ndarray
+        See above.
+    y2 : numpy.ndarray
+        See above.
+    const : float, optional
+        A constant term that changes the background level. The default 
+        is ``0``
+    amp : float, optional
+        The amplitude of the rational quadratic term. The default is ``1``
+    length : float, optional
+        The length scale of the kernel. The default is ``1``
+    scale : float, optional
+        The scaling function between order terms. The default is ''1''
+
+    Returns
+    -------
+    kernel_mat : numpy.ndarray
+        A :class:`numpy.ndarray` the same size as the input arrays with the 
+        kernel matrix elements.
+
+    """
+    return const + \
+        amp*np.power(1. + ((x1 - x2)**2 + (y1 - y2)**2)/2./length**2/scale, 
+            -scale)
+
+
 
