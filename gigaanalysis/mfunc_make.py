@@ -101,6 +101,8 @@ def make_gaussian(x_data, amp, mean, std, offset=0, as_Data=True):
         The values to compute the y values of.
     amp : float
         The maxiumal value of the Gaussian function.
+    mean : float
+        The centre of the Gaussian function.
     std : float
         The width of the Gaussian given as the standard deviation in the 
         same units as the `x_data`.

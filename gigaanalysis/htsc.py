@@ -15,7 +15,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def trans_res(data, res_onset, under_nan=False, over_nan=False):
+def trans_res(data, res_onset, under_nan=False, over_nan=False, 
+        as_ratio=False):
     """Returns the dependent variable value at the resistive transition.
 
     This assumes the data is sorted and returns the last value that is below 
@@ -35,6 +36,11 @@ def trans_res(data, res_onset, under_nan=False, over_nan=False):
     over_nan : bool, optional
         If the default of 'False' the last value is returned if all the data 
         lays below the onset value. If 'True' NaN is returned.
+    as_ratio : bool, optional
+        If `True` then the value of res_onset is multiplied by the maximum 
+        value of the data. For most examples this means that if 
+        ``res_onset = 0.01`` then the transition would be at 1% of the 
+        high temperature value. The default is `False`.
 
     Returns
     -------
@@ -45,6 +51,9 @@ def trans_res(data, res_onset, under_nan=False, over_nan=False):
     if not isinstance(data, Data):
         raise TypeError(
             f"data need to be a Data object but instead was {type(data)}.")
+
+    if as_ratio:
+        res_onset = data.y.max()*res_onset
 
     r_data = data[::-1].append([[0., -np.inf]])
     low_x = r_data.x[r_data.y <= res_onset]

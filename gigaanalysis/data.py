@@ -311,11 +311,11 @@ class Data():
 
     def __neg__(self):
         """Negates the y values"""
-        return Data(self.x, neg(self.y))
+        return Data(self.x, -self.y)
 
     def __pos__(self):
         """Performs a unity operation on y values"""
-        return Data(self.x, pos(self.y))
+        return Data(self.x, self.y)
 
     def __eq__(self, other):
         """Data class is only equal to other Data classes with the same data.
@@ -971,7 +971,7 @@ def _fit_one_y(data, x_value, x_range, poly_deg):
             f"enough to fit a {poly_deg} order polynomial.")
     return np.polyfit(xs, ys, poly_deg)[-1]
 
-def y_from_fit(data, x_value, x_range, poly_deg=1, as_data=False):
+def y_from_fit(data, x_value, x_range, poly_deg=1, as_Data=False):
     """Fits a polynomial over a range to interpolate a given value.
 
     This makes use of :func:`numpy.polyfit` to find an interpolated value of 
@@ -990,7 +990,7 @@ def y_from_fit(data, x_value, x_range, poly_deg=1, as_data=False):
     poly_deg : int, optional
         The order of the polynomial to use when fitting to find the result. 
         The default is `1` which is a linear fit.
-    as_data : bool, optional
+    as_Data : bool, optional
         If default of False y values are given as an float or an array. If 
         `True` then a Data object is returned.
 
@@ -999,7 +999,7 @@ def y_from_fit(data, x_value, x_range, poly_deg=1, as_data=False):
     y_value : float, numpy.ndarray, or Data
         The y values obtained at the associated value of x for the fit 
         performed. The type depends if multiple points are requested and if 
-        'as_data` is set.
+        'as_Data` is set.
     """
     if not isinstance(data, Data):
         raise TypeError(
@@ -1021,12 +1021,12 @@ def y_from_fit(data, x_value, x_range, poly_deg=1, as_data=False):
             f"shape {x_value.shape}")
 
     if x_value.size == 1:
-        if not as_data:
+        if not as_Data:
             return _fit_one_y(data, x_value, x_range, poly_deg)
         else:
             return Data(
                 [[x_value, _fit_one_y(data, x_value, x_range, poly_deg)]])
-    elif as_data:
+    elif as_Data:
         return Data(x_value, np.array(
             [_fit_one_y(data, xv, x_range, poly_deg) for xv in x_value]))
     else:

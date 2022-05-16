@@ -273,3 +273,53 @@ def roll_dataset(independent, dependent, variable, look_up=None,
         dataset = dict(filter(lambda elm: len(elm[1])!=0, dataset.items()))
 
     return dataset
+
+
+def read_wpd(file_name, parse_keys=None, sort_keys=False, strip_sort=True):
+    """Read Web Plot Digitizer output csv files.
+    
+    `Web Plot Digitizer <https://automeris.io/WebPlotDigitizer>`_ is a 
+    program that can extract the data from images of scientific figures. 
+    When the program exports the data as a csv file it is in a certain 
+    format, which this function reads. The output is a gigaanaylsis dataset 
+    with the names of the web plot digitizer datasets as the keys.
+
+    Parameters
+    ----------
+    file_name : str
+        The location of csv file that Web Plot Digitizer produced.
+    parse_keys : callable, optional
+        If a function is given the keys are passed to it and the output is 
+        used as the new key.
+    sort_keys : bool, optional
+        If `True` then the keys are sorted, the default is `False` where 
+        they will be in the order in the csv file.
+    strip_sort : bool, optional
+        If default of `True` the option of the same name is given for each 
+        of the :class:`.Data` objects in the set.
+
+    Returns
+    -------
+    dataset : dict of Data
+        A dictionary where the values are :class:`.Data` objects containing 
+        the data in the csv file.
+    """
+    df = pd.read_csv(file_name, header=0)
+    keys = np.array(df.columns)[::2]
+    data = df.values[1:, :].astype(np.float_)
+    
+    if callable(parse_keys):
+        keys = [parse_keys(key) for key in keys]
+        
+    if sort_keys:
+        if callable(sort_keys):
+            keys = sorted(keys, key=sort_keys)
+        else:
+            keys = sorted(keys)
+    
+    dataset = {}
+    for n, key in enumerate(keys):
+        dataset[key] = Data(data[:, 2*n:2*n+2], strip_sort=strip_sort)
+    
+    return dataset
+
