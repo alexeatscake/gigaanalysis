@@ -181,11 +181,15 @@ class GP_map():
             self.gen_yy = nory*_norm_array(self.gen_yy, self.gen_y)
         
         self.kernel = None
+        self._input_kernel = None
+        self._kernel_type = None
+        self._new_kernel = True
+        self.kernel_args = {}
         self.white_noise = None
         self.kmat_inv = None
         self.predict_z = None
         
-    def set_distance_kernel(self, dis_kernel, white_noise, **kwargs):
+    def set_distance_kernel(self, dis_kernel, white_noise, kernel_args={}):
         """Set a kernel which is a function of euclidean distance.
 
         Here you can set a kernel which is a function of distance between 
@@ -206,20 +210,15 @@ class GP_map():
             the matrix inversion, so even with perfect data a small white 
             noise term is preferable. 
         """
+        self._input_kernel = dis_kernel
+        self._kernel_type = 'dis'
         self.white_noise = white_noise
+        self.kernel_args = kernel_args
+        self._new_kernel = True
         
-        def kernel(x1, y1, x2, y2):
-            
-            xx1, xx2 = np.meshgrid(x1, x2)
-            yy1, yy2 = np.meshgrid(y1, y2)
-            
-            dis = np.sqrt((xx1 - xx2)**2 + (yy1 - yy2)**2)
-            
-            return dis_kernel(dis, **kwargs)
+        _make_dis_kernel()
         
-        self.kernel = kernel
-        
-    def set_xy_kernel(self, xy_kernel, white_noise, **kwargs):
+    def set_xy_kernel(self, xy_kernel, white_noise, kernel_args={}):
         """Set a kernel which is a function of the x and y values.
 
         Here you can set a kernel which is a function of the x and y value 
@@ -243,17 +242,51 @@ class GP_map():
             the matrix inversion, so even with perfect data a small white 
             noise term is preferable. 
         """
+        self._input_kernel = xy_kernel
+        self._kernel_type = 'xy'
+        self.kernel_args = kernel_args
         self.white_noise = white_noise
+        self._new_kernel = True
         
+        self._make_xy_kernel()
+
+    def _make_dis_kernel():
+        """Make the self.kernel function using the current attributes.
+        """
         def kernel(x1, y1, x2, y2):
             
             xx1, xx2 = np.meshgrid(x1, x2)
             yy1, yy2 = np.meshgrid(y1, y2)
             
-            return xy_kernel(xx1, yy1, xx2, yy2, **kwargs)
+            dis = np.sqrt((xx1 - xx2)**2 + (yy1 - yy2)**2)
+            
+            return self._input_kernel(dis, **self.kernel_args)
         
         self.kernel = kernel
+
+
+    def _make_xy_kernel():
+        """Make the self.kernel function using the current attributes.
+        """
+        def kernel(x1, y1, x2, y2):
+            
+            xx1, xx2 = np.meshgrid(x1, x2)
+            yy1, yy2 = np.meshgrid(y1, y2)
+            
+            return self._input_kernel(xx1, yy1, xx2, yy2, **self.kernel_args)
         
+        self.kernel = kernel
+
+    def _make_kernel():
+        if self._kernel_type == 'dis':
+            self._make_dis_kernel()
+        elif self._kernel_type == 'xy':
+            self._make_xy_kernel()
+        else:
+            raise ValueError(
+                f"_kernel_type was not 'xy' or 'dis' but was "
+                f"{self._kernel_type}.")
+
     
     def _make_kmat_inv(self):
         """Calculates the kernel matrix inverse.
@@ -263,13 +296,15 @@ class GP_map():
                 "A kernel needs to set a kernel before the prediction can "
                 "be preformed. This can be done with either the method "
                 "set_distance_kernel or set_xy_kernel.")
+
+        self._new_kernel = False
             
         self.kmat_inv = np.linalg.inv(
             self.kernel(self.input_x, self.input_y, 
                 self.input_x, self.input_y)  + \
             self.white_noise*np.identity(self.input_x.size))
     
-    def predict(self, cut_outside=False):
+    def predict(self, cut_outside=False, new_invert=False):
         """Calculates the interpolated z values.
 
         Runs the calculation and returns the result of interpolating the z 
@@ -283,6 +318,12 @@ class GP_map():
             set to numpy.nan. This is done using 
             :meth:`cut_outside_hull`. If float is given then that 
             is used as the tolerance and the cut is preformed.
+        new_invert : bool, optional
+            If 'True' then the kernel will be inverted again. If the default 
+            of 'False' then the kernel will only be recalculated if it has 
+            been updated. If the kernel is updated by addressing the 
+            attribute then to be recalculated this need to be set to 'True' 
+            for the new kernel to be used.
 
         Returns
         -------
@@ -298,7 +339,8 @@ class GP_map():
                 "be preformed. This can be done with either the method "
                 "set_distance_kernel or set_xy_kernel.")
         
-        self._make_kmat_inv()
+        if self._new_kernel or new_invert:
+            self._make_kmat_inv()
         
         self.predict_z = self.input_z @ self.kmat_inv @ \
             self.kernel(self.input_x, self.input_y, 
@@ -376,7 +418,7 @@ class GP_map():
         
         return r_gen_xx, r_gen_yy, self.predict_z
     
-    def plot_contorf(self, colorbar_kwargs={}, **kwargs):
+    def plot_contourf(self, colorbar_kwargs={}, **kwargs):
         """Plot the generated data as a contour map
 
         This makes use of :func:`matplotlib.pyplot.contorf` and keyword 
@@ -388,7 +430,7 @@ class GP_map():
         plt.contourf(*self.plotting_arrays(), **kwargs)
         plt.colorbar(**colorbar_kwargs)
         
-    def plot_contor(self, colorbar_kwargs={}, **kwargs):
+    def plot_contour(self, colorbar_kwargs={}, **kwargs):
         """Plot the generated data as a contour map
 
         This makes use of :func:`matplotlib.pyplot.contor` and keyword 

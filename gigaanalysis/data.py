@@ -116,7 +116,7 @@ class Data():
                 raise ValueError(
                     f"If x and y data are split both need to be the same "
                     f"size. values has size {values.size} and split_y has "
-                    f"size {split_y.szie}")
+                    f"size {split_y.size}")
             values = np.concatenate(
                 [values[:, None], split_y[:, None]], axis=1)
 
