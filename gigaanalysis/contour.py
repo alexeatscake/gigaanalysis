@@ -19,6 +19,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy.spatial import ConvexHull
+from scipy.optimize import minimize
+
 
 def _norm_array(to_change, reference):
     """Normalise an array by the range of values in a different array. Takes 
@@ -68,12 +70,13 @@ class GP_map():
         values, and the x values of the :class:`.Data` objects are used as 
         the y values. To swap these two roles set key_y to `True`.
     normalise_xy : bool or tuple, optional
-        If default of 'True' then the x y values are normalised to the range 
+        If 'True' then the x y values are normalised to the range 
         0 to 1. This is useful for the kernel to deal with the probable 
-        disparity of units in the two directions. If 'False' then this is 
-        not done. A tuple of two floats can be provided instead which the x 
-        and y values will be normalised to instead of range unity. This can 
-        be useful for weighting the units in an euclidean kernel.
+        disparity of units in the two directions. If default of 'False' then 
+        this is not done. A tuple of two floats can be provided instead 
+        which the x and y values will be normalised to instead of range 
+        unity. This can be useful for weighting the units in an euclidean 
+        kernel.
     look_up : dict, optional
         This is a dictionary with all the keys that match the keys in the 
         dataset and values which are floats to be used for the x values. 
@@ -111,6 +114,9 @@ class GP_map():
         x values and then corresponding y values and then another similar 
         pair. These are then used to produce a 2D array of the kernel 
         weights.
+    kernel_args : dict
+        This is a dictionary of keyword argument to be passed to the 
+        provided kernel function.
     white_noise : float
         The amplitude of the white noise term in the kernel function.
     kmat_inv : numpy.ndarray
@@ -119,7 +125,7 @@ class GP_map():
         A 2D array with the interpolated values produced.
     """
     def __init__(self, dataset, gen_x, gen_y, key_y=False, 
-            normalise_xy=True, look_up=None, even_space_y=None):
+            normalise_xy=False, look_up=None, even_space_y=None):
         # Set up class
         try:
             gen_x = np.asarray(gen_x)
@@ -188,8 +194,46 @@ class GP_map():
         self.white_noise = None
         self.kmat_inv = None
         self.predict_z = None
+    
+    def _make_dis_kernel(self):
+        """Make the self.kernel function using the current attributes.
+        """
+        def kernel(x1, y1, x2, y2):
+            
+            xx1, xx2 = np.meshgrid(x1, x2)
+            yy1, yy2 = np.meshgrid(y1, y2)
+            
+            dis = np.sqrt((xx1 - xx2)**2 + (yy1 - yy2)**2)
+            
+            return self._input_kernel(dis, **self.kernel_args)
         
-    def set_distance_kernel(self, dis_kernel, white_noise, kernel_args={}):
+        self.kernel = kernel
+
+
+    def _make_xy_kernel(self):
+        """Make the self.kernel function using the current attributes.
+        """
+        def kernel(x1, y1, x2, y2):
+            
+            xx1, xx2 = np.meshgrid(x1, x2)
+            yy1, yy2 = np.meshgrid(y1, y2)
+            
+            return self._input_kernel(xx1, yy1, xx2, yy2, **self.kernel_args)
+        
+        self.kernel = kernel
+
+    def _make_kernel(self):
+        if self._kernel_type == 'dis':
+            self._make_dis_kernel()
+        elif self._kernel_type == 'xy':
+            self._make_xy_kernel()
+        else:
+            raise ValueError(
+                f"_kernel_type was not 'xy' or 'dis' but was "
+                f"{self._kernel_type}.")
+
+
+    def set_distance_kernel(self, dis_kernel, white_noise, **kernel_args):
         """Set a kernel which is a function of euclidean distance.
 
         Here you can set a kernel which is a function of distance between 
@@ -216,9 +260,9 @@ class GP_map():
         self.kernel_args = kernel_args
         self._new_kernel = True
         
-        _make_dis_kernel()
+        self._make_dis_kernel()
         
-    def set_xy_kernel(self, xy_kernel, white_noise, kernel_args={}):
+    def set_xy_kernel(self, xy_kernel, white_noise, **kernel_args):
         """Set a kernel which is a function of the x and y values.
 
         Here you can set a kernel which is a function of the x and y value 
@@ -249,44 +293,6 @@ class GP_map():
         self._new_kernel = True
         
         self._make_xy_kernel()
-
-    def _make_dis_kernel():
-        """Make the self.kernel function using the current attributes.
-        """
-        def kernel(x1, y1, x2, y2):
-            
-            xx1, xx2 = np.meshgrid(x1, x2)
-            yy1, yy2 = np.meshgrid(y1, y2)
-            
-            dis = np.sqrt((xx1 - xx2)**2 + (yy1 - yy2)**2)
-            
-            return self._input_kernel(dis, **self.kernel_args)
-        
-        self.kernel = kernel
-
-
-    def _make_xy_kernel():
-        """Make the self.kernel function using the current attributes.
-        """
-        def kernel(x1, y1, x2, y2):
-            
-            xx1, xx2 = np.meshgrid(x1, x2)
-            yy1, yy2 = np.meshgrid(y1, y2)
-            
-            return self._input_kernel(xx1, yy1, xx2, yy2, **self.kernel_args)
-        
-        self.kernel = kernel
-
-    def _make_kernel():
-        if self._kernel_type == 'dis':
-            self._make_dis_kernel()
-        elif self._kernel_type == 'xy':
-            self._make_xy_kernel()
-        else:
-            raise ValueError(
-                f"_kernel_type was not 'xy' or 'dis' but was "
-                f"{self._kernel_type}.")
-
     
     def _make_kmat_inv(self):
         """Calculates the kernel matrix inverse.
@@ -303,8 +309,86 @@ class GP_map():
             self.kernel(self.input_x, self.input_y, 
                 self.input_x, self.input_y)  + \
             self.white_noise*np.identity(self.input_x.size))
+
+    def set_kernel_args(self, **kernel_args):
+        """Set keyword arguments for the kernel function.
+
+        This allows new kernel keyword values to be set without resupplying 
+        the kernel and all the other keyword values. This keeps the values 
+        already set unless they are written over. The values are supplied 
+        by providing keyword arguments to this function.
+        """
+
+        for key, val in kernel_args.items():
+            self.kernel_args[key] = val
+        self._new_kernel = True 
+
+    def calculate_log_mlh(self):
+        """Calculate and return the negative log marginal likelihood.
+
+        This is the scaler that needs to be minimised to compare the values 
+        of kernel parameters. This recalculates the values in a way to try 
+        and speed things in the minimisation process.
+
+        Returns
+        -------
+        neg_log_marg_lh : float
+            The negative log marginal likelihood for the current kernel and 
+            data provided.
+        """
+        k_mat = self.kernel(self.input_x, self.input_y, 
+            self.input_x, self.input_y)
+        k_mat_inv = np.linalg.inv(k_mat + \
+            self.white_noise*np.identity(self.input_x.size))
+        z_diff = self.input_z - k_mat.T @ k_mat_inv @ self.input_z
+        s_det, log_det = np.linalg.slogdet(k_mat + 
+            self.white_noise*np.identity(self.input_x.size))
+        like = z_diff.T @ k_mat_inv @ z_diff
+
+        return log_det/2. + like/2. + z_diff.size*np.log(2.*np.pi)/2.
+
+    def optermise_argument(self, arguments, **kwargs):
+        """Minimise the negative log marginal likelihood.
+
+        This uses :func:`scipy.optimize.minimize` to change the value of 
+        keyword arguments to minimise the value from 
+        :meth:`calculate_log_mlh`. This should take both into account the 
+        model complexity and the quality of the kit to the data.
+        Keyword arguments are passed to :func:`scipy.optimize.minimize`, a 
+        very useful one is `bounds` which is a list of tuples of the lower 
+        then upper bounds.
+
+        Parameters
+        ----------
+        arguments : dict
+            A dictionary of the keywords for the kernel function and the 
+            initial values to start the optimisation from.
+
+        Returns
+        -------
+        minimize_result : scipy.optimize.OptimizeResult
+            The result from the running of :func:`scipy.optimize.minimize`, 
+            the `x` argument of the result is also set to the 
+            :attr:`kernel_args` attribute.
+        """
+        x0 = [x for x in arguments.values()]
+        keys = [k for k in arguments.keys()]
+
+        def to_min(x_temp):
+            self.set_kernel_args(**{
+                keys[n]:x_temp[n] for n in range(len(x_temp))
+                })
+            return self.calculate_log_mlh()
+        
+        min_res = minimize(to_min, x0, **kwargs)
+        self.set_kernel_args(**{
+            keys[n]:min_res.x[n] for n in range(len(x0))
+            })
+
+        return min_res
+
     
-    def predict(self, cut_outside=False, new_invert=False):
+    def predict(self, cut_outside=False, new_invert=False, no_return=False):
         """Calculates the interpolated z values.
 
         Runs the calculation and returns the result of interpolating the z 
@@ -324,6 +408,9 @@ class GP_map():
             been updated. If the kernel is updated by addressing the 
             attribute then to be recalculated this need to be set to 'True' 
             for the new kernel to be used.
+        no_return : bool, optional
+            If the default of 'False' the prediction will be returned. If 
+            'True' then nothing will be.
 
         Returns
         -------
@@ -355,7 +442,8 @@ class GP_map():
             else:
                 self.cut_outside_hull()
         
-        return self.predict_z
+        if not no_return:
+            return self.predict_z
     
     def cut_outside_hull(self, tol=1e-9):
         """Removes data that requires extrapolation
@@ -391,7 +479,7 @@ class GP_map():
         out_hull = out_hull.reshape(self.gen_xx.shape)
         
         self.predict_z[out_hull] = np.nan
-    
+
     def plotting_arrays(self):
         """Produces the three arrays need for plotting
 
@@ -489,19 +577,72 @@ def gaussian_kernel(x1, y1, x2, y2, const=0., amp=1., length=1.):
         kernel matrix elements.
 
     """
-    return const + amp*np.exp(((x1 - x2)**2 + (y1 - y2)**2)/2/length**2)
+    return const + amp*np.exp(-((x1 - x2)**2 + (y1 - y2)**2)/2/length**2)
 
 
-def linear_kernel(x1, y1, x2, y2, const=1., amp=1.):
+def elliptical_gaussian_kernel(x1, y1, x2, y2, const=0., amp=1., 
+        x_length=1., y_length=1., angle=0.):
+    """An elliptical Gaussian kernel for contour fitting.
+
+    This is a simple Gaussian kernel for use with 
+    :meth:`GP_map.set_xy_kernel`.  
+    The keyword arguments can be set when they are passed through 
+    :meth:`GP_map.set_xy_kernel`.
+
+    Parameters
+    ----------
+    x1: numpy.ndarray
+        The four arguments are arrays which contain the x and y values from 
+        the points to generate the appropriate kernel matrix. These arrays 
+        are all the same size.
+    y1 : numpy.ndarray
+        See above.
+    x2 : numpy.ndarray
+        See above.
+    y2 : numpy.ndarray
+        See above.
+    const : float, optional
+        A constant term that changes the background level. Default is ``0``
+    amp : float, optional
+        The amplitude of the Gaussian. The default is ``1``
+    x_length : float, optional
+        The length scale of the x component Gaussian. The default is ``1``
+    y_length : float, optional
+        The length scale of the y component Gaussian. The default is ``1``
+    angle : float, optional
+        The angle in radians to rotate the x and y contributions the default 
+        is ``0`` which keeps the x and y values independent.
+
+    Returns
+    -------
+    kernel_mat : numpy.ndarray
+        A :class:`numpy.ndarray` the same size as the input arrays with the 
+        kernel matrix elements.
+
+    """
+    x_dis = (x1 - x2)
+    y_dis = (y1 - y2)
+
+    x_dis2 = np.power(
+        (x_dis*np.cos(angle) + y_dis*np.sin(angle))/x_length, 2)/2.
+    y_dis2 = np.power(
+        (y_dis*np.cos(angle) - x_dis*np.sin(angle))/y_length, 2)/2.
+
+
+    return const + amp*np.exp(-(x_dis2 + y_dis2))
+
+def linear_kernel(x1, y1, x2, y2, const=1., amp=1., x_scale=1., y_scale=1.):
     """A linear kernel for contour fitting.
 
     This is a simple linear kernel for use with 
     :meth:`GP_map.set_xy_kernel`. It has an equation of the form
-    ``K = const + amp*(((x1 - x2)**2 + 
-    (y1 - y2)**2)/2/length**2/scale)**scale``. The keyword arguments can be 
-    set when they are passed through :meth:`GP_map.set_xy_kernel`. There are 
-    much faster ways of doing this than with Gaussian processes the utility 
-    of this function is to be combined with others.
+    ``K = const + amp*(x1*x2/x_scale**2+ y1*y2/y_scale**2)``. The keyword 
+    arguments can be set when they are passed through 
+    :meth:`GP_map.set_xy_kernel`. There are much faster ways of doing this 
+    than with Gaussian processes the utility of this function is to be 
+    combined with others. Also amp, x_scale, and y_scale over define the 
+    function so don't optimise on all at once; they are included to help
+    to relate to physical properties.
 
     Parameters
     ----------
@@ -520,6 +661,12 @@ def linear_kernel(x1, y1, x2, y2, const=1., amp=1.):
         is ``0``
     amp : float, optional
         The amplitude of the linear term. The default is ``1``
+    x_scale : float, optional
+        The scaling of the x values in the same units as x. The default is 
+        ``1``.
+    y_scale : float, optional
+        The scaling of the y values in the same units as y. The default is 
+        ``1``.
 
     Returns
     -------
@@ -528,7 +675,7 @@ def linear_kernel(x1, y1, x2, y2, const=1., amp=1.):
         kernel matrix elements.
 
     """
-    return const + amp*x1*x2 + amp*y1*y2
+    return const + amp*(x1*x2/x_scale**2+ y1*y2/y_scale**2)
 
 
 def rational_quadratic_kernel(x1, y1, x2, y2, const=0., amp=1., length=1.,
