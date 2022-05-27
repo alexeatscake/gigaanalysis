@@ -388,7 +388,8 @@ class GP_map():
         return min_res
 
     
-    def predict(self, cut_outside=False, new_invert=False, no_return=False):
+    def predict(self, cut_outside=False, new_invert=False, no_return=False,
+            cap_z=None):
         """Calculates the interpolated z values.
 
         Runs the calculation and returns the result of interpolating the z 
@@ -411,6 +412,10 @@ class GP_map():
         no_return : bool, optional
             If the default of 'False' the prediction will be returned. If 
             'True' then nothing will be.
+        cap_z, tuple
+            If a tuple of floats is given then the :attr:`predict_z` is 
+            capped between the two values given using :meth:`cap_min_max`. 
+            If None is given then the cap isn't performed. 
 
         Returns
         -------
@@ -441,6 +446,13 @@ class GP_map():
                 self.cut_outside_hull(tol=cut_outside)
             else:
                 self.cut_outside_hull()
+
+        if cap_z is not None:
+            if len(cap_z) != 2:
+                raise ValueError(
+                    f"cap_z should be a tuple of length 2 but was a type "
+                    f"{type(cap_z)} .")
+            self.cap_min_max(cap_z[0], cap_z[1])
         
         if not no_return:
             return self.predict_z
@@ -479,6 +491,41 @@ class GP_map():
         out_hull = out_hull.reshape(self.gen_xx.shape)
         
         self.predict_z[out_hull] = np.nan
+
+    def cap_min_max(self, z_min, z_max):
+        """Caps the z values between a minimum and maximum values
+
+        This changed the :attr:`predict_z` attribute so that values above 
+        and bellow a range are caped to the values. This can be useful for 
+        trimming unphysical values or cutting out extremes from 
+        extrapolation.
+
+        Parameters
+        ----------
+        z_min : float, None
+            If a float is given then the all the values bellow this value 
+            are changed to equal this value. If `None` is given then a cap 
+            isn't preformed.
+        z_max : float, None
+            If a float is given then the all the values above this value 
+            are changed to equal this value. If `None` is given then a cap 
+            isn't preformed.
+        """
+        if self.predict_z is None:
+            raise AttributeError(
+                "The result needs to be generated using the predict "
+                "method before the result can be cap between z values.")
+
+        if z_min is not None and z_max is not None and z_min > z_max:
+            raise ValueError(
+                f"The value of z_min ({z_min}) was larger than the value "
+                f"of z_max ({z_max}). Therefore capping of the z_values is "
+                f"not possible.")
+
+        if z_min is not None:
+            self.predict_z[self.predict_z < z_min] = z_min
+        if z_max is not None:
+            self.predict_z[self.predict_z > z_max] = z_max
 
     def plotting_arrays(self):
         """Produces the three arrays need for plotting

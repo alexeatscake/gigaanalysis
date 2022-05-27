@@ -42,6 +42,8 @@ class Fit_result():
         The optimum values for the parameters.
     pcov : numpy.ndarray
         The estimated covariance.
+    pstd : numpy.ndarray
+        The estimated standard deviation
     results : gigaanalysis.data.Data
         The optimal values obtained from the fit, will be
         none if `full`=`False` when performing the fit.
@@ -57,6 +59,7 @@ class Fit_result():
         self.func = func
         self.popt = popt
         self.pcov = pcov
+        self.pstd = np.sqrt(np.diag(pcov))
         self.results = results
         self.residuals = residuals
 
@@ -70,7 +73,8 @@ class Fit_result():
         return 'GA fit results:{}'.format(self.popt)
 
     def __dir__(self):
-        return ['func', 'popt', 'pcov', 'results', 'residuals', 'predict']
+        return ['func', 'popt', 'pcov', 'pstd', 'results', 'residuals', 
+        'predict', '']
 
     def __len__(self):
         return self.popt.size
@@ -90,6 +94,30 @@ class Fit_result():
             An Data object with the predicted y_values.
         """
         return Data(x_vals, self.func(x_vals, *self.popt))
+
+    def sample_parameters(self, size, **kwargs):
+        """This samples values of the parameters from a multivariate normal 
+        distribution using the fitted values and variance.
+
+        This uses the function :func:`numpy.random.multivariate_normal` and 
+        keyword arguments are passed to it.
+
+        Parameters
+        ----------
+        size : int
+            The number of samples to return. (More complicated behaviour is 
+            possible, see: :func:`numpy.random.multivariate_normal`)
+
+        Returns
+        -------
+        samples : numpy.ndarray
+            A numpy array in the shape `(s, n)` where `s` is the number of 
+            samples and `n` is the number of parameters.
+
+        """
+
+        return np.random.multivariate_normal(self.popt, self.pcov, size,
+            **kwargs)
 
 
 def curve_fit(data, func, p0, full=True, **kwargs):
