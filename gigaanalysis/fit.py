@@ -74,7 +74,7 @@ class Fit_result():
 
     def __dir__(self):
         return ['func', 'popt', 'pcov', 'pstd', 'results', 'residuals', 
-        'predict', '']
+        'predict', 'sample_parameters']
 
     def __len__(self):
         return self.popt.size
