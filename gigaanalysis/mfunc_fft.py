@@ -1,12 +1,9 @@
-"""**Make Functions**
+"""**FFT Functions**
 
 This module contains a large collections of simple functions that are for 
-performing basic maths using :class:`.Data` objects. The functions are 
-currently in three types. There are the basic functions that act on the 
-dependent variables and return a new :class:`Data`object. There is the 
-'make' functions that produce data in a certain form given parameters and 
-the x values. There are also a few more functions to do with FFTs, 
-differentiation and integration.
+performing basic maths using :class:`.Data` objects. These are for 
+performing a Fast Fourier Transform (FFT) mostly using the function 
+:func:`fft`. There are also some functions for identifying the FFT peaks.
 """
 
 from .data import *
@@ -21,7 +18,8 @@ def fft(data, n=65536, window='hanning', freq_cut=0.):
     """Performs an Fast Fourier Transform on the given data.
 
     This assumes that the data is real, and the data provided needs to be 
-    evenly spaced. Makes use of :func:`numpy.fft.rfft`.
+    evenly spaced. Makes use of :func:`numpy.fft.rfft`. This takes into 
+    account the x values to provide the frequencies in the correct units.
 
     Parameters
     ----------
