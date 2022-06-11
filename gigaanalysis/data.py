@@ -17,8 +17,9 @@ GigaAnalysis aims to take advantage of.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
-from scipy.signal import savgol_filter, get_window, find_peaks
+
+from scipy.interpolate import interp1d  # Used often to interpolate values
+
 
 def _pick_float_dtype(to_check):
     """Return np.complex128 for complex dtypes, np.float64 otherwise.

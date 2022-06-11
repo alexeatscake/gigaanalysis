@@ -40,6 +40,11 @@ classes found in GigaAnalysis.
    :show-inheritance:
 
 
+.. automodule:: gigaanalysis.mfunc_trans
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: gigaanalysis.dset
    :members:
    :undoc-members:
