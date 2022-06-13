@@ -2,18 +2,19 @@
 
 This is a simple thing that I needed in the high field labs to read TDMS 
 files. It isn't included in the main library as it requires the very useful 
-package nptdms. All in all I would recommend just using this as an example, 
-but given the difficultly of opening TDMS files, this could be a good 
-starting point.
+package `nptdms <https://nptdms.readthedocs.io/en/stable/>`_. All in all I 
+would recommend just using this as an example, but given the difficultly of 
+opening TDMS files, this could be a good starting point.
 """
 
+import gigaanalysis as ga  # This file is extra to gigaanalysis
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 import nptdms as tdms  # For read_ISSP
-import gigaanalysis as ga
+
 
 def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
     """Takes data from TDMS file.
@@ -52,6 +53,7 @@ def read_ISSP(file, fieldCH, currentCH, voltageCH, group='Untitled'):
                                      "/'{}'/'{}'".format(group, currentCH),
                                      "/'{}'/'{}'".format(group, voltageCH)]
                                      ].values.T]
+
 
 def save_to_tdms(data, file_name,
         group='Untitled', x_name='X', y_name='Y', **kwargs):

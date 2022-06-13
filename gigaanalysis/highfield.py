@@ -11,9 +11,10 @@ from . import diglock
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from ipywidgets import interact, FloatSlider # For PulsedLockIn.find_phase
+
 from scipy.signal import savgol_filter  # For PulsedLockIn.lockin_Volt_smooth
 from scipy.interpolate import interp1d # For example_field
+
 
 def example_field(max_field, peak_time, length, sample_rate, as_Data=False):
     """Produces a data set with a field profile.
@@ -244,7 +245,6 @@ def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
         return B_slice
     else:
         return field[B_slice]
-
 
 
 class PulsedLockIn():
@@ -586,10 +586,20 @@ class PulsedLockIn():
             diglock.phase_in(v_in, v_out, aim=aim)) % 360
 
     def find_phase(self, skip_num=10, start_auto='change', to_zero=False):
-        """Produces a graph with a slider that can be helpful for phasing.
+        """Returns a function that makes a graph for phasing.
+        
+        This produces a function which when called plots a graph showing the 
+        in and out of phase signal, the one argument is the phase. The 
+        default value of the one argument is set by the start_phase 
+        argument. 
 
-        This produces a graph with a ipywidgets slider so that it is 
-        possible to inspect what phase shift will be best.
+        One way to use this is with the library 
+        `ipywidgets  <https://ipywidgets.readthedocs.io/en/latest>`_ which 
+        can make a slider in notebooks by running ::
+        
+            find_phase_function = PulsedLockIn.find_phase()
+            ipywidgets.interact(find_phase_function, 
+               phase=ipywidgets.FloatSlider(min=0, max=360, step=1))
 
         Parameters
         ----------
@@ -605,6 +615,12 @@ class PulsedLockIn():
             If `True` the in phase and out of phase components are set to 
             zero at the lowest field. This can make the changes easier to 
             inspect. The default is `False`.
+
+        Returns
+        -------
+        plotting : Calculable
+            A function with one keyword argument of `phase` which plots the 
+            in and out of phase signal when called.
         """
         self._has_locked()
 
@@ -636,11 +652,10 @@ class PulsedLockIn():
             plt.plot(field, v_out_new, 'r', label='V Out')
             plt.ylabel('Voltage (V)')
             plt.xlabel('Field (T)')
-            plt.legend(loc='upper right')
+            plt.legend(loc='upper left', title=f"phase: {phase:.1f}")
             plt.show()
-        # Generate interactive window
-        interact(plotting, phase=FloatSlider(min=0, max=360, step=1,
-            value=start_phase, continuous_update=False))
+
+        return plotting
 
     def reset_slice(self, skip_num='No', B_min='No', side='No', trial=False):
         """This reproduces the slice which selects the data of interest.
@@ -852,6 +867,4 @@ class PulsedLockIn():
         self._has_locked_I()
         return self._make_Data(self.loc_I[self.slice],
             as_Data=as_Data, x_axis=x_axis)
-
-
 

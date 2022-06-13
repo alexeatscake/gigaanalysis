@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from scipy.spatial import ConvexHull
-from scipy.optimize import minimize
+from scipy.spatial import ConvexHull  # For GP_map.cut_outside_hull
+from scipy.optimize import minimize  # For GP_map.optermise_argument
 
 
 def _norm_array(to_change, reference):
@@ -232,7 +232,6 @@ class GP_map():
                 f"_kernel_type was not 'xy' or 'dis' but was "
                 f"{self._kernel_type}.")
 
-
     def set_distance_kernel(self, dis_kernel, white_noise, **kernel_args):
         """Set a kernel which is a function of euclidean distance.
 
@@ -386,7 +385,6 @@ class GP_map():
             })
 
         return min_res
-
     
     def predict(self, cut_outside=False, new_invert=False, no_return=False,
             cap_z=None):
@@ -678,6 +676,7 @@ def elliptical_gaussian_kernel(x1, y1, x2, y2, const=0., amp=1.,
 
     return const + amp*np.exp(-(x_dis2 + y_dis2))
 
+
 def linear_kernel(x1, y1, x2, y2, const=1., amp=1., x_scale=1., y_scale=1.):
     """A linear kernel for contour fitting.
 
@@ -770,6 +769,4 @@ def rational_quadratic_kernel(x1, y1, x2, y2, const=0., amp=1., length=1.,
     return const + \
         amp*np.power(1. + ((x1 - x2)**2 + (y1 - y2)**2)/2./length**2/scale, 
             -scale)
-
-
 

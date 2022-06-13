@@ -189,3 +189,4 @@ def abs(data, act_x=False, as_Data=True):
     """Applies :func:`numpy.abs` using :func:`apply_func`.
     """
     return apply_func(data, np.abs, act_x=act_x, as_Data=as_Data)
+

@@ -13,7 +13,9 @@ from . import mfunc
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit as sp_curve_fit
+
+from scipy.optimize import curve_fit as sp_curve_fit  # For curve_fit and
+# curve_fit_y
 
 
 class Fit_result():

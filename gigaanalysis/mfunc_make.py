@@ -13,7 +13,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-
 def make_poly(x_data, *p_vals, as_Data=True):
     """Generates a polynomial from the coefficients. 
 

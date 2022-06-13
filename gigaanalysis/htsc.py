@@ -80,7 +80,6 @@ def _dome_output(orignal, out_x, out_y, as_Data):
         return out_y
 
 
-
 def dome_p2tc(doping, t_max=94.3, p_max=16., p_w=11., as_Data=False):
     """This converts values of doping to transition temperature on a SC dome.
 

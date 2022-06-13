@@ -14,7 +14,8 @@ from .data import *
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import h5py
+
+import h5py  # For interacting with HDF5 files
 
 
 def check_set(data_set, meta_df=None, higher_key=()):
@@ -215,6 +216,7 @@ def set_to_hdf5(data_set, file_name, meta_df=None,
         __hdf5_set(file, data_set, meta_df, location=location)
         if isinstance(info_attr, str):
             file[location].attrs['info'] = info_attr
+
 
 def __print_hdf5_group(group):
     """A recursive function to call used by :func:`print_hdf5`.
@@ -493,7 +495,6 @@ def array_from_hdf5(file_name, location):
         data = file[location][:]
         attributes = dict(file[location].attrs.items())
     return data, attributes
-
 
 
 def sort_dset(dataset, apply_key=None, sort_key=None, check_data=True):

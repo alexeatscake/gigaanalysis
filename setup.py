@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name="gigaanalysis",
-    version="0.01",
+    version="0.2.0",
     packages=find_packages(),
     # scripts=["data.py", "qo.py"],
 

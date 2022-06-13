@@ -50,6 +50,3 @@ def schottky_anomaly(temps, num, gap, as_Data=False):
     else:
         return cp
 
-
-
-

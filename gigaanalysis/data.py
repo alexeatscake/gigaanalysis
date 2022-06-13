@@ -372,7 +372,6 @@ class Data():
         else:
             return False
 
-
     def __getitem__(self, k):
         """Indexing returns a subset of the Data object.
 
@@ -600,7 +599,6 @@ class Data():
             return y_val
         else:
             return float(y_val)
-
 
     def apply_x(self, function):
         """This takes a function and applies it to the x values.
@@ -960,6 +958,7 @@ def mean(data_list):
     """
     return sum_data(data_list)/len(data_list)
 
+
 def _fit_one_y(data, x_value, x_range, poly_deg):
     """A function used by :func:`y_from_fit` that calculates the y value 
     from one x value.
@@ -971,6 +970,7 @@ def _fit_one_y(data, x_value, x_range, poly_deg):
             f"There was only {len(xs)} in the provided range which is not "
             f"enough to fit a {poly_deg} order polynomial.")
     return np.polyfit(xs, ys, poly_deg)[-1]
+
 
 def y_from_fit(data, x_value, x_range, poly_deg=1, as_Data=False):
     """Fits a polynomial over a range to interpolate a given value.
@@ -1033,9 +1033,6 @@ def y_from_fit(data, x_value, x_range, poly_deg=1, as_Data=False):
     else:
         return np.array([_fit_one_y(data, xv, x_range, poly_deg) \
             for xv in x_value])
-
-
-
 
 
 def collect_y_values(data_list):

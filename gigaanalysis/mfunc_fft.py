@@ -11,7 +11,9 @@ from .data import *
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.signal import get_window, find_peaks
+
+from scipy.signal import (get_window,  # For ftt
+    find_peaks)  # For get_peaks
 
 
 def fft(data, n=65536, window='hanning', freq_cut=0.):
