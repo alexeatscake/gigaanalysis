@@ -1,3 +1,5 @@
 .DS_Store
 docs/build/
 gigaanalysis/__pycache__/
+/gigaanalysis.egg-info/
+/dist/
