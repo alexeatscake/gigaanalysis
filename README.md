@@ -1,6 +1,6 @@
 # gigaanalysis
 
-version 0.2.1
+version 0.2.2
 
 This library provides a collection of classes and functions for analysing 
 datasets which are of the from of one independent and one dependent 
@@ -42,4 +42,7 @@ This was developed mostly using
 * pandas 1.3.4
 * matplotlib 3.4.3
 * h5py 2.10.0
+
+I haven't found any problems with using newer versions of these same 
+dependencies.
 

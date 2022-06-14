@@ -199,6 +199,20 @@ def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
             f"The maximum value of the field is smaller than the given "
             f"value of B_min.")
 
+    if side not in ['up', 'down', 'both']:
+        raise ValueError(
+            f"side was given as {side} but can only be 'up', 'down', or "
+            f"'both'.")
+
+    if side == 'down' and maxB_arg == len(field) - 1:
+        raise ValueError(
+            f"down was selected but the highest field was at the end of the "
+            f"field profile given.")
+    elif side == 'up' and maxB_arg == 0:
+        raise ValueError(
+            f"up was selected but the highest field was at the start of the "
+            f"field profile given.")
+
     if B_min is None:
         pass
     elif side == 'down' and B_min > np.min(field[maxB_arg:]):
@@ -233,9 +247,7 @@ def pick_pulse_side(field, B_min, side, skip_num=1, give_slice=True):
         if B_min is None:
             startB_arg, endB_arg = None, None
         else:
-            startB_arg = np.where(field>B_min)[0][0]
-            endB_arg = maxB_arg + \
-                np.where(field[maxB_arg:]<B_min)[0][0]
+            startB_arg, endB_arg = np.where(field>B_min)[0][[0, -1]]
 
         B_slice = slice(startB_arg, endB_arg, skip_num)
     else:
