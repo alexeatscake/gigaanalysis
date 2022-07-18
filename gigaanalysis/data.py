@@ -673,6 +673,10 @@ class Data():
         is defined :func:`numpy.linspace` is used.
         If using `step_size` it rounds `min_x` to the next integer value of 
         the steps, unless `shift_step` is `False`.
+
+        If values outside the range of the original data need to be 
+        passed to be interpolated, this is possible with 
+        :func:`Data.interp_values`.
         It uses :func:`scipy.interpolate.interp1d`.
         
         Parameters
@@ -772,7 +776,8 @@ class Data():
         return self.interp_range(self.min_x(), self.max_x(),
             num_points=num_points, kind=kind,)
 
-    def interp_values(self, x_vals, kind='linear'):
+    def interp_values(self, x_vals, kind='linear', bounds_error=True,
+            fill_value=np.nan, strip_sort=False):
         """Produce Data object from interpolating x values.
 
         This uses :func:`scipy.interpolate.interp1d` to produce a Data 
@@ -785,6 +790,15 @@ class Data():
         kind : str or int, optional
             The type of interpolation to use. Passed to 
             :func:`scipy.interpolate.interp1d`, default is `linear`.
+        bounds_error : bool, optional
+            If default of `True` data outside the existing range will throw 
+            an error. If `False` then the value is set by `fill_value`.
+        fill_value : float or (float, float) or `extrapolate`, optional
+            If bounds_error is `False` then this value will be used outside 
+            the range. Passed to :func:`scipy.interpolate.interp1d`.
+        strip_sort : bool, optional
+            The default is `False`, where to sort and remove NaNs from the 
+            Data object before returning.
 
         Returns
         -------
@@ -796,16 +810,25 @@ class Data():
             raise ValueError(
                 f"x_vals had shape {x_vals.shape} where as it need to be 1D")
 
-        if self.min_x() > np.min(x_vals):
-            raise ValueError("min_x value to interpolate is below data")
-        if self.max_x() < np.max(x_vals):
-            raise ValueError("max_x value to interpolate is above data")
-        # The bounds are used in the rare case of floating point issues.
-        min_y = self.y[self.x.argmin()]
-        max_y = self.y[self.x.argmax()]
-        y_vals = interp1d(self.x, self.y, kind=kind,
-            bounds_error=False, fill_value=(min_y, max_y))(x_vals)
-        return Data(x_vals, y_vals)
+        if bounds_error:
+            if self.min_x() > np.min(x_vals):
+                raise ValueError(
+                    "min_x value to interpolate is below data and "
+                    "bounds_error is True.")
+            if self.max_x() < np.max(x_vals):
+                raise ValueError(
+                    "max_x value to interpolate is above data and "
+                    "bounds_error is True")
+            # The bounds are used in the rare case of floating point issues.
+            min_y = self.y[self.x.argmin()]
+            max_y = self.y[self.x.argmax()]
+            y_vals = interp1d(self.x, self.y, kind=kind,
+                bounds_error=False, fill_value=(min_y, max_y))(x_vals)
+        else:
+            y_vals = interp1d(self.x, self.y, kind=kind,
+                bounds_error=False, fill_value=fill_value)(x_vals)
+
+        return Data(x_vals, y_vals, strip_sort=strip_sort)
 
     def to_even(self, step_size, shift_step=True, kind='linear'):
         """Evenly interpolates the data and updates the data object.
