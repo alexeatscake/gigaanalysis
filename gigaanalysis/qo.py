@@ -390,7 +390,8 @@ class QO():
             The y_value of the peak. Which is the highest y value in a given 
             range of the data.
         """
-        return mfunc.peak_height(self.fft, position, x_range, x_value=x_value)
+        return mfunc.peak_height(self.fft, position, x_range, 
+            x_value=x_value)
 
     def FFT_again(self, n=65536, window='hanning', freq_cut=0):
         """Recalculates the FFT.
@@ -653,8 +654,8 @@ class QO_loess(QO):
     """Quantum Oscillation object with LOESS subtraction
 
     This is a example of the :class:`QO` which the subtraction using 
-    :func:`.mfunc.loess`. The form is the same but with the initialising function 
-    takes the arguments to define the LOESS background subtraction.
+    :func:`.mfunc.loess`. The form is the same but with the initialising 
+    function takes the arguments to define the LOESS background subtraction.
 
     Parameters
     ----------
@@ -716,8 +717,8 @@ class QO_loess_av(QO_av):
     """Average Quantum Oscillation object with LOESS subtraction
 
     This is a example of the :class:`QO_av` which the subtraction using 
-    :func:`.mfunc.loess`. The form is the same but with the initialising function 
-    takes the arguments to define the LOESS background subtraction.
+    :func:`.mfunc.loess`. The form is the same but with the initialising 
+    function takes the arguments to define the LOESS background subtraction.
 
     Parameters
     ----------

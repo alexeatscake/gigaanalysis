@@ -396,8 +396,8 @@ def array_to_hdf5(data, file_name, location, attributes=None,
         the groups and the data set name separated by "/".
     attributes : dict of {str: val}, optional
         A dictionary of meta data to attach to the data set. The keys of the 
-        dictionary need to be `str`. Default is None and attaches no attributes
-        to the data set.
+        dictionary need to be `str`. Default is None and attaches no 
+        attributes to the data set.
     overwrite : bool, optional
         If default of `False` the existing file is not overwritten and is 
         instead added to. This will throw an error if trying to save to a 

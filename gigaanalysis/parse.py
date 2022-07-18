@@ -71,16 +71,16 @@ def cluster_group(data, normalise='constant', threshold=None,
 
 def group_average(data, groups, error=False, std_factor=True,
         not_individual=False):
-    """This takes a set of data that has a corresponding indexed groups and
-    produces a new set of the averages of those groups. This can also produce
-    a corresponding set with the standard deviation of the groups.
+    """This takes a set of data that has a corresponding indexed groups and 
+    produces a new set of the averages of those groups. This can also 
+    produce a corresponding set with the standard deviation of the groups.
 
     Parameters
     ----------
     data : numpy.ndarray
         The data set to preform the averages of the groups on.
     groups : numpy.ndarray
-        The array with the corresponding index of the groups. Is required to
+        The array with the corresponding index of the groups. Is required to 
         be the same size as the data array.
     error : bool, optional
         Whether to produce the array of the standard deviations. Default is
