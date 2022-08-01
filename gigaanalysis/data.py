@@ -1508,11 +1508,15 @@ def load_dict(file_name, name_space='/',
                 f"The columns names did not match for X and Y data. "
                 f"The columns were {to_read.columns}.")
         # This next bit removes nans added to pad the data.
+        last_val = None
         for n, x in enumerate(to_read.values[-1::-1, 0]):
-            if x == x:
+            if x == x:  # False if NaN
                 last_val = n
                 break
-        if last_val == 0:
+        
+        if last_val == None:  # No data found
+            vals = np.array([]).reshape(0, 2) 
+        elif last_val == 0:  # All cells had data
             vals = to_read.values
         else:
             vals = to_read.values[:-last_val, :]
