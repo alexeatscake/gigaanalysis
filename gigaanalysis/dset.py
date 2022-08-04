@@ -115,8 +115,8 @@ def __set_attrs_from_df(dset, data, meta_df, key):
     # set some values that should be in every metadata table
     attrs_to_set.update({
         'size':len(data),
-        'min_x':data.min_x(),
-        'max_x':data.max_x(),
+        'min_x':data.min_x() if len(data) != 0 else np.nan,
+        'max_x':data.max_x() if len(data) != 0 else np.nan,
     })
     for prop, val in attrs_to_set.items():
         if not pd.isnull(val):
