@@ -1,0 +1,5 @@
+# requirements for sphinx documentation
+
+sphinx==5.0.2
+sphinx_rtd_theme==0.4.3
+docutils==0.16
