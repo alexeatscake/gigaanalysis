@@ -8,6 +8,9 @@ variable. This is very common in condensed mater physics experiment and
 gigaanalysis was produced for use in high magnetic field facilities.
 
 
+Documentation: https://gigaanalysis.readthedocs.io/en/latest/
+
+
 ##  Layout
 
 It broken into a collection of modules for different uses
