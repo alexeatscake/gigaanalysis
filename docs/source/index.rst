@@ -1,11 +1,13 @@
-GigaAnalysis
-========================================
+gigaanalysis
+============
 
-GigaAnalysis is a package that is used for processing sweep data from
-experimental physics. It was developed for the use in high magnetic field
-facilities, where each measurement one dependant variable is changed
-(magnetic field), often rapidly and the complete data set is formed by
-assembling many of these measurements.
+A toolbox for processing data that can be expressed as a dependent and 
+independent variable.
+
+This library provides a collection of classes and functions for analysing 
+datasets which are of the from of one independent and one dependent 
+variable. This is very common in condensed mater physics experiment and 
+gigaanalysis was produced for use in high magnetic field facilities.
 
 
 .. toctree::
@@ -20,5 +22,4 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`

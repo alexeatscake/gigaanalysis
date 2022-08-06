@@ -3,3 +3,4 @@ docs/build/
 gigaanalysis/__pycache__/
 /gigaanalysis.egg-info/
 /dist/
+/build/

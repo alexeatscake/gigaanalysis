@@ -595,11 +595,11 @@ def scanning_fft(signal, fs, tseg, tstep,
         The number of points to skip when identifying the peak at the 
         beginning of the FFT to ignore the low freq upturn. The default is 
         `100` and this is passed to :func:`polypeak`.
-    tqdm_bar : tqdm.tqdm, optional
+    tqdm_bar : `tqdm.tqdm`, optional
         This function can be slow so a tqdm progress bar can be passed using 
         this keyword which will be updated to show the progress of the 
-        calculation. This is done by
-        :: 
+        calculation. This is done by::
+
             from tqdm import tqdm
             with tqdm() as bar: 
                 res = scanning_fft(signal, fs, tseg, tstep, tqdm_bar=bar)

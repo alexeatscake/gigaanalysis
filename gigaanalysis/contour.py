@@ -592,7 +592,7 @@ def gaussian_kernel(x1, y1, x2, y2, const=0., amp=1., length=1.):
 
     This is a simple Gaussian kernel for use with 
     :meth:`GP_map.set_xy_kernel`. It has an equation of the form
-    ``K = const + amp*exp(((x1 - x2)**2 + (y1 - y2)**2)/length**2)''. 
+    ``K = const + amp*exp(((x1 - x2)**2 + (y1 - y2)**2)/length**2)``. 
     The keyword arguments can be set when they are passed through 
     :meth:`GP_map.set_xy_kernel`.
 

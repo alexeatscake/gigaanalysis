@@ -486,8 +486,8 @@ class PulsedLockIn():
         magnets can see high voltage spikes.
         This uses :func:`.diglock.spike_lock_in`.
         Nothing is returned but the following attributes are updated, 
-        :attr:`time_const`, :attt:`phase_shift`, :attr:`loc_Volt`, and 
-        :attr:`loc_Volt_out.
+        :attr:`time_const`, :attr:`phase_shift`, :attr:`loc_Volt`, and 
+        :attr:`loc_Volt_out`.
         
         Parameters
         ----------
@@ -544,7 +544,7 @@ class PulsedLockIn():
         
         This changes the attributes :attr:`loc_Volt` and 
         :attr:`loc_Volt_out` to shift the phase by a certain amount. If the 
-        :param:`trial` is set to `True` then the result is returned instead 
+        `trial` is set to `True` then the result is returned instead 
         of updating the attributes. The phase shift given is absolute and 
         :attr:`phase_shft` is also updated.
 
@@ -577,7 +577,7 @@ class PulsedLockIn():
         This finds the phase which makes the out of phase a flat as possible
         and also has the in phase be majority positive. It can also be set 
         to move the majority of the signal into the in-phase channel using 
-        the :param:`aim` parameter. Uses :func:`.diglock.phase_in`.
+        the `aim` parameter. Uses :func:`.diglock.phase_in`.
         
         Parameters
         ----------
@@ -676,7 +676,7 @@ class PulsedLockIn():
         trial option that will return a new slice instead of updating the 
         existing attribute. The parameters will try to all default to the 
         values to reproduce the current slice, this maybe not be exacltly 
-        the same with :param:`B_min`.
+        the same with `B_min`.
 
         Parameters
         ----------

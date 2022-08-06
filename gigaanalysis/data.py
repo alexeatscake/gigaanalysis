@@ -1460,7 +1460,8 @@ def load_dict(file_name, name_space='/',
     It assumes there is one line for the headers and they are used for the 
     keys of the dictionary. It also removes NaNs at the end of each sweep to 
     undo what is produced by uneven length of data objects.
-    It makes use of :func:`pandas.read_csv`, and **kwargs is passed to them.
+    It makes use of :func:`pandas.read_csv`, and extra keyword arguments are 
+    passed to there.
 
     Parameters
     ----------
@@ -1472,7 +1473,7 @@ def load_dict(file_name, name_space='/',
         Passed to :class:`Data`.
         If true the data points with NaN are removed using 
         :func:`numpy.isfinite` and the data is sorted by the x values.
-        If 'strip' is given NaNs are removed but the data isn't sorted.
+        If 'strip' is given NaNs are removed but the data is not sorted.
         If 'sort' is given the data is sorted but NaNs are left in.
         Default is False so the data isn't changed.
     interp_full : float, optional

@@ -12,6 +12,7 @@
 #
 import os
 import sys
+from gigaanalysis import __version__
 
 sys.path.insert(0, os.path.abspath('../..'))
 
@@ -23,7 +24,7 @@ copyright = '2020, Alex Hickey'
 author = 'Alex Hickey'
 
 # The full version, including alpha/beta/rc tags
-version = "0.2.2"
+version = __version__
 release = version
 
 
