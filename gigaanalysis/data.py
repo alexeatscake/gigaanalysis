@@ -982,7 +982,7 @@ def mean(data_list):
     return sum_data(data_list)/len(data_list)
 
 
-def _fit_one_y(data, x_value, x_range, poly_deg):
+def _fit_one_y(data, x_value, x_range, poly_deg, std=False):
     """A function used by :func:`y_from_fit` that calculates the y value 
     from one x value.
     """
@@ -992,10 +992,25 @@ def _fit_one_y(data, x_value, x_range, poly_deg):
         raise ValueError(
             f"There was only {len(xs)} in the provided range which is not "
             f"enough to fit a {poly_deg} order polynomial.")
-    return np.polyfit(xs, ys, poly_deg)[-1]
+    if std:
+        if std == 'fit':
+            val, err = np.polyfit(xs, ys, poly_deg, cov=True)
+            err = np.sqrt(err[-1, -1])
+        elif std == 'residual':
+            val = np.polyfit(xs, ys, poly_deg)
+            y_res = ys.copy()
+            for n in range(len(val)):
+                y_res = y_res - (xs**n)*val[-n-1]
+            err = np.std(y_res)
+        else:
+            raise ValueError("std was not either 'fit' or 'residual'.")
+        return val[-1], err
+    else:
+        return np.polyfit(xs, ys, poly_deg)[-1]
 
 
-def y_from_fit(data, x_value, x_range, poly_deg=1, as_Data=False):
+def y_from_fit(data, x_value, x_range, poly_deg=1, as_Data=False, 
+        std=False):
     """Fits a polynomial over a range to interpolate a given value.
 
     This makes use of :func:`numpy.polyfit` to find an interpolated value of 
@@ -1017,13 +1032,20 @@ def y_from_fit(data, x_value, x_range, poly_deg=1, as_Data=False):
     as_Data : bool, optional
         If default of False y values are given as an float or an array. If 
         `True` then a Data object is returned.
+    std : bool, optional
+        If `fit` or 'residual' then the standard deviation is returned after 
+        the values. The standard deviation can either be calculated from the 
+        error in the fit (using 'fit') or from the distribution of the 
+        residuals of the fit (using 'residual'). The default value is 
+        `False`, where only the value will be returned.
 
     Returns
     -------
     y_value : float, numpy.ndarray, or Data
         The y values obtained at the associated value of x for the fit 
         performed. The type depends if multiple points are requested and if 
-        'as_Data` is set.
+        'as_Data` is set. If `std` is `True` then the standard deviation is 
+        followed in the same format.
     """
     if not isinstance(data, Data):
         raise TypeError(
@@ -1044,18 +1066,40 @@ def y_from_fit(data, x_value, x_range, poly_deg=1, as_Data=False):
             f"x_value can a float or a 1D array like of floats but was of "
             f"shape {x_value.shape}")
 
+    if std:
+        if std not in ['fit', 'residual']:
+            raise ValueError("std must either False or be 'fit' or "
+                f"'residual' but was {std}")
+
     if x_value.size == 1:
         if not as_Data:
-            return _fit_one_y(data, x_value, x_range, poly_deg)
+            return _fit_one_y(data, x_value, x_range, poly_deg, std=std)
         else:
-            return Data(
-                [[x_value, _fit_one_y(data, x_value, x_range, poly_deg)]])
+            if std:
+                val, err = _fit_one_y(data, x_value, x_range, poly_deg, 
+                    std=std)
+                return Data([[x_value, val]]), Data([[x_value, err]])
+            else:
+                return Data([[x_value, 
+                    _fit_one_y(data, x_value, x_range, poly_deg)]])
     elif as_Data:
-        return Data(x_value, np.array(
-            [_fit_one_y(data, xv, x_range, poly_deg) for xv in x_value]))
+        if std:
+            val, err = np.array(
+                [_fit_one_y(data, xv, x_range, poly_deg, std=std) \
+                    for xv in x_value]).T
+            return Data(x_value, val), Data(x_value, err)
+        else:
+            return Data(x_value, np.array(
+                [_fit_one_y(data, xv, x_range, poly_deg) for xv in x_value]))
     else:
-        return np.array([_fit_one_y(data, xv, x_range, poly_deg) \
-            for xv in x_value])
+        if std:
+            val, err = np.array(
+                [_fit_one_y(data, xv, x_range, poly_deg, std=std) \
+                    for xv in x_value]).T
+            return val, err
+        else:
+            return np.array([_fit_one_y(data, xv, x_range, poly_deg) \
+                for xv in x_value])
 
 
 def collect_y_values(data_list):
