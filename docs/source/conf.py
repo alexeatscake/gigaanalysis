@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 # -- Project information -----------------------------------------------------
 
 project = 'gigaanalysis'
-copyright = '2020, Alex Hickey'
+copyright = '2022, Alex Hickey'
 author = 'Alex Hickey'
 
 # The full version, including alpha/beta/rc tags
