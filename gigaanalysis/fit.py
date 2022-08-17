@@ -95,6 +95,9 @@ class Fit_result():
         y_vals : Data
             An Data object with the predicted y_values.
         """
+        if isinstance(x_vals, (float, int, np.float_, np.int_)):
+            x_vals = np.array([x_vals])
+
         return Data(x_vals, self.func(x_vals, *self.popt))
 
     def sample_parameters(self, size, **kwargs):
