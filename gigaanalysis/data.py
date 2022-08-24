@@ -563,9 +563,7 @@ class Data():
         """
         if x_min > x_max:
             raise ValueError('x_min should be smaller than x_max')
-        return Data(self.values[
-                    np.searchsorted(self.x, x_min, side='left'):
-                    np.searchsorted(self.x, x_max, side='right'), :])
+        return Data(self.values[(self.x > x_min) & (self.x < x_max)])
 
     def y_from_x(self, x_val, bounds_error=True, kind='linear'):
         """Gives the y value for a certain x value or set of x values.

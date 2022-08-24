@@ -1,6 +1,6 @@
 # gigaanalysis
 
-version 0.3.4
+version 0.3.5
 
 This library provides a collection of classes and functions for analysing 
 datasets which are of the from of one independent and one dependent 
