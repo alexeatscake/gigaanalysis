@@ -8,7 +8,7 @@ that take multiple measurements at each point in a sweep.
 """
 
 from .data import *
-from . import dset
+from . import dset, mfunc
 
 import numpy as np
 import pandas as pd
@@ -322,4 +322,80 @@ def read_wpd(file_name, parse_keys=None, sort_keys=False, strip_sort=True):
         dataset[key] = Data(data[:, 2*n:2*n+2], strip_sort=strip_sort)
     
     return dataset
+
+
+def end_of_dataset(data_set, minimum=True, look_up=None,
+        interp_step=None, loess_window=None, loess_poly=2):
+    """Produces a Data object from the x value extent of a dataset.
+
+    This produces a Data object where each datum is composed of a value made 
+    from the key of the dataset, and the other is either the minimum or 
+    maximum x value. This is use for finding the x extent of two dimensional 
+    maps.
+
+    Parameters
+    ----------
+    data_set : dict of Data
+        The dataset to obtain the values from.
+    minimum : bool, optional
+        If to take the minimum or maximum x values from the dataset. The 
+        default value if `True` and this takes the minimum.
+    look_up : dict, optional
+        A dictionary that converts the keys from the dataset into floats to 
+        be returned. The default is `None` where the values of the keys 
+        themselves is used.
+    interp_step : float, optional 
+        This applies the method :meth:`.Data.interp_step` to the data object 
+        after it is produced. This is useful as the data needs to be evenly
+        interpreted before it can be smoothed. The default is `None` which 
+        does not apply the method.
+    loess_window : float, optional 
+        This can be used to smooth the data. The default is `None` where no 
+        smoothing is applied. The value sets the range to be used for the 
+        loess window in :func:`mfunc.loess`. This is useful for smoothly 
+        masking the bottom of contour maps.
+    loess_poly : int, optional
+        The default is `2`. This this is the order of the polynomial to be 
+        used by the loess function :func:`mfunc.loess`.
+
+    Returns
+    -------
+    end_data : Data
+        The data object which is composed of the minimum or maximum x values 
+        in the dataset.
+    """
+    if look_up is None:
+        class self_dict():
+            def __getitem__(self, get): return get
+        
+        look_up = self_dict()
+    elif isinstance(look_up, (dict, pd.Series)):
+        pass
+    else:
+        raise TypeError(
+            f"If look up is provided need to be a dict was a "
+            f"{type(look_up)} instead.")
+    
+    if dset.check_set(data_set) != 1:
+        raise TypeError(
+            f"The data_set had multiple nested dictionaries instead "
+            f"of only one.")
+
+    if minimum:
+        val_func = np.min
+    else:
+        val_func = np.max
+
+    end = Data([[look_up[key], val_func(dat.x)] \
+        for key, dat in data_set.items()], strip_sort=True)
+
+    if interp_step is not None:
+        end = end.interp_step(interp_step)
+    elif loess_window is not None:
+        end = end.interp_number(len(end))  # Need to interp for loess
+
+    if loess_window is not None:
+        end = mfunc.loess(end, loess_window, loess_poly)
+
+    return end
 
