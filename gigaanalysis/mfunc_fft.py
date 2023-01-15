@@ -16,7 +16,7 @@ from scipy.signal import (get_window,  # For ftt
     find_peaks)  # For get_peaks
 
 
-def fft(data, n=65536, window='hanning', freq_cut=0.):
+def fft(data, n=65536, window='hann', freq_cut=0.):
     """Performs an Fast Fourier Transform on the given data.
 
     This assumes that the data is real, and the data provided needs to be 
@@ -33,7 +33,7 @@ def fft(data, n=65536, window='hanning', freq_cut=0.):
         than the value of n, n is rounded up to the next power of 2.
     window : str, optional
         The type of windowing function to use taken from 
-        :func:`scipy.signal.get_window`. The default is 'hanning'.
+        :func:`scipy.signal.get_window`. The default is 'hann'.
     freq_cut : float, optional
         The frequency to drop all the higher from. The default is 0 which 
         means that all the frequencies are kept.

@@ -393,7 +393,7 @@ class QO():
         return mfunc.peak_height(self.fft, position, x_range, 
             x_value=x_value)
 
-    def FFT_again(self, n=65536, window='hanning', freq_cut=0):
+    def FFT_again(self, n=65536, window='hann', freq_cut=0):
         """Recalculates the FFT.
 
         After recalcuating the FFT the new FFT is returned and also the 
@@ -408,7 +408,7 @@ class QO():
             than the value of n, n is rounded up to the next power of 2.
         window : str, optional
             The type of windowing function to use taken from 
-            :func:`scipy.signal.get_window`. The default is 'hanning'.
+            :func:`scipy.signal.get_window`. The default is 'hann'.
         freq_cut : float, optional
             The frequency to drop all the higher from. The default is 0 
             which means that all the frequencies are kept.
