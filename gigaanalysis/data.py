@@ -924,7 +924,7 @@ def empty_data():
     return Data(np.array([], dtype=np.float_).reshape(0, 2))
 
 
-def sum_data(data_list):
+def sum(data_list):
     """Preforms the sum of the y data a set of Data class objects.
     
     Parameters
@@ -977,7 +977,7 @@ def mean(data_list):
     averaged_data : Data
         A Data object with the summed y values of the original data sets.
     """
-    return sum_data(data_list)/len(data_list)
+    return sum(data_list)/len(data_list)
 
 
 def _fit_one_y(data, x_value, x_range, poly_deg, std=False):
