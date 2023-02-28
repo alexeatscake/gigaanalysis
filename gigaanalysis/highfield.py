@@ -536,7 +536,7 @@ class PulsedLockIn():
         smooth_points = int(np.ciel(smooth_time/self.fs/2)*2 + 1)
         self.loc_Volt = savgol_filter(self.loc_Volt, smooth_points,
             smooth_order,)
-        self.loc_Volt_out = savgol_filter(presmooth_out, smooth_points,
+        self.loc_Volt_out = savgol_filter(self.loc_Volt_out, smooth_points,
             smooth_order,)
 
     def rephase(self, phase_shift, trial=False):
