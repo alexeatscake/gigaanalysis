@@ -393,9 +393,8 @@ def phase_in_change(signal_in, signal_out, **kwargs):
         return np.average(resisual*resisual)
 
     # Find the minimum
-    max_phase = np.asscalar(
-        minimize(to_min, x0=0., method='Nelder-Mead', **kwargs).x
-        ) % 180
+    max_phase = minimize(to_min, x0=0., method='Nelder-Mead', **kwargs
+        ).x.item() % 180
     # Pick double value that makes signal positive
     if np.sum(signal_in*np.cos(max_phase*np.pi/180) + \
             signal_out*np.sin(max_phase*np.pi/180)) < 0:
@@ -445,8 +444,8 @@ def phase_in_value(signal_in, signal_out, **kwargs):
         return np.average(out_abs)
 
     # Find the minimum
-    max_phase = np.asscalar(
-        minimize(to_min, x0=0., method='Nelder-Mead', **kwargs).x) % 180
+    max_phase = minimize(to_min, x0=0., method='Nelder-Mead', **kwargs
+        ).x.item() % 180
     # Pick double value that makes signal positive
     if np.sum(signal_in*np.cos(max_phase*np.pi/180) + \
             signal_out*np.sin(max_phase*np.pi/180)) < 0:
