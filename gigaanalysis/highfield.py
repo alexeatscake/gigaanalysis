@@ -533,7 +533,7 @@ class PulsedLockIn():
             The order of the poly to fit for the smoothing, the default is 2.
         """
         self._has_locked()
-        smooth_points = int(np.ciel(smooth_time/self.fs/2)*2 + 1)
+        smooth_points = int(np.ceil(smooth_time/self.fs/2)*2 + 1)
         self.loc_Volt = savgol_filter(self.loc_Volt, smooth_points,
             smooth_order,)
         self.loc_Volt_out = savgol_filter(self.loc_Volt_out, smooth_points,
