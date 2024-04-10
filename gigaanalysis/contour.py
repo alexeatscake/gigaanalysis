@@ -352,7 +352,7 @@ class GP_map():
         This uses :func:`scipy.optimize.minimize` to change the value of 
         keyword arguments to minimise the value from 
         :meth:`calculate_log_mlh`. This should take both into account the 
-        model complexity and the quality of the kit to the data.
+        model complexity and the quality of the fit to the data.
         Keyword arguments are passed to :func:`scipy.optimize.minimize`, a 
         very useful one is `bounds` which is a list of tuples of the lower 
         then upper bounds.
