@@ -50,6 +50,10 @@ def check_set(data_set, meta_df=None, higher_key=()):
     if not isinstance(data_set, dict):
         raise TypeError(
             f"data_set was not a dict but instead a {type(data_set)}.")
+    elif len(data_set) == 0:
+        raise ValueError(
+            f"data_set contained an empty dictionary on level "
+            f" {len(higher_key) + 1}, the dictionaries cannot be empty.")
     for key, val in data_set.items():
         new_key = (*higher_key, key)
         if isinstance(val, dict):
