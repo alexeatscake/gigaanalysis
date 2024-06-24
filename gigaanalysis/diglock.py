@@ -13,10 +13,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from scipy.signal import (blackmanharris,  # for find_freq
-    hamming,  # for hamming_window
-    butter, filtfilt,  # for butter_bandpass and butter_bandpass_filter
-    get_window)  # For sfft
+from scipy.signal import (get_window,  # For sfft
+    butter, filtfilt) # for butter_bandpass and butter_bandpass_filter
+from scipy.signal.windows import (blackmanharris,  # for find_freq
+    hamming)  # for hamming_window
 from numpy.fft import rfft, rfftfreq # for find_freq
 from scipy.optimize import minimize  # for find_phase, phase_in
 
