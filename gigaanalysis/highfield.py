@@ -636,7 +636,7 @@ class PulsedLockIn():
         """
         self._has_locked()
 
-        if isinstance(start_auto, (int, float, np.int_, np.float_)):
+        if isinstance(start_auto, (int, float, np.integer, np.floating)):
             start_phase = start_auto
         elif start_auto == 'change':
             start_phase = self.auto_phase(aim='change')

@@ -167,13 +167,13 @@ def deriv(data, x_window, deriv_order, polyorder=None, **kwargs):
         raise ValueError(
             "The data needs to be evenly spaced to smooth.")
 
-    if not isinstance(deriv_order, (int, np.int_)) or deriv_order < 0:
+    if not isinstance(deriv_order, (int, np.integer)) or deriv_order < 0:
         raise TypeError(
             f"deriv_order must be an non negative integer but was of type "
             f"{type(deriv_order)}.")
     
     if polyorder is not None:
-        if not isinstance(polyorder, (int, np.int_)):
+        if not isinstance(polyorder, (int, np.integer)):
             raise TypeError(
                 f"polyorder needs to be an integer but was of type "
                 f"{type(polyorder)}")

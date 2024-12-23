@@ -628,7 +628,7 @@ class QO_av(QO):
             A quantum oscillation object with the same parameters as used in 
             this class but only the data from one of the sweeps.
         """
-        if not isinstance(raw_num, (int, np.int_)):
+        if not isinstance(raw_num, (int, np.integer)):
             raise TypeError(
                     f"raw_num needs to be a int but is of type "
                     f"{type(raw_num)}")

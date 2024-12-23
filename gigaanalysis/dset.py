@@ -254,7 +254,7 @@ def print_hdf5(file_name):
         __print_hdf5_group(file['/'])
 
 
-def __read_hdf5_group(group, data_set, meta_df):
+def __read_hdf5_group(group, data_set, meta_row_list):
     """Build up a data set and metadata table recursively from a HDF5 file.
 
     Parameters
@@ -263,16 +263,16 @@ def __read_hdf5_group(group, data_set, meta_df):
         The group to read in the HDF5 file.
     data_set : dict
         The dictionary to save the :class:`gigaanalysis.data.Data` in.
-    meta_df : pandas.DataFrame
-        A metadata table to fill with the attributes of the 
-        :class:`h5py.Dataset` in the group.
+    meta_row_list : list(pandas.DataFrame)
+        A list of DataFrames to produce the metadata table to fill with the 
+        attributes of the :class:`h5py.Dataset` in the group.
 
     Returns
     -------
     data_set : dict
         The dictionary after it is populated.
-    meta_df : pandas.DataFrame
-        A metadata table after it is populated.
+    meta_row_list : list(pandas.DataFrame)
+        A metadata table list after it is populated.
     """
     try:
         assert group.attrs['ga_data_set']
@@ -285,15 +285,15 @@ def __read_hdf5_group(group, data_set, meta_df):
         this_key = val.name.split('/')[-1]
         if isinstance(val, h5py.Group):
             data_set[this_key] = {}
-            data_set[this_key], meta_df = __read_hdf5_group(
-                val, data_set[this_key], meta_df)
+            data_set[this_key], meta_row_list = __read_hdf5_group(
+                val, data_set[this_key], meta_row_list)
         else:
             data_set[this_key] = Data(val[:])
             new_row = pd.DataFrame(
                 [dict(val.attrs.items())],
                 index=[val.name])
-            meta_df = meta_df.append(new_row)
-    return data_set, meta_df
+            meta_row_list.append(new_row)
+    return data_set, meta_row_list
 
 
 def __count_layer(dict_to_check, count=0):
@@ -370,11 +370,11 @@ def set_from_hdf5(file_name, location='/'):
         (:class:`pandas.MultiIndex`).
     """
     data_set = {}
-    meta_df = pd.DataFrame(columns=[
-        'size', 'min_x', 'max_x'])
+    meta_row_list = []
     with h5py.File(file_name, 'r') as file:
-        data_set, meta_df = __read_hdf5_group(
-            file[location], data_set, meta_df)
+        data_set, meta_row_list = __read_hdf5_group(
+            file[location], data_set, meta_row_list)
+    meta_df = pd.concat(meta_row_list)
     meta_df = __reindex_meta(
         meta_df, __count_layer(data_set))
     return data_set, meta_df
@@ -408,7 +408,7 @@ def array_to_hdf5(data, file_name, location, attributes=None,
         location of an already existing dataset.
     """
     # Start with checking location specifier
-    if not isinstance(location, np.str):
+    if not isinstance(location, str):
         raise TypeError(
             f"location needs to be a string but was a "
             f"{type(location)}")
@@ -433,7 +433,7 @@ def array_to_hdf5(data, file_name, location, attributes=None,
             raise TypeError(
                 f"attributes needs to be a dict but was type "
                 f"{type(attributes)}")
-        if not all(isinstance(key, np.str) for key in attributes.keys()):
+        if not all(isinstance(key, str) for key in attributes.keys()):
             raise TypeError(
                 f"The keys for the attributes need to be all strings")
     # Parse the location into groups and dset names
@@ -484,7 +484,7 @@ def array_from_hdf5(file_name, location):
         A dictionary containing the attributes of the data set that was 
         read. If there was no attributes then the dictionary will be empty.
     """
-    if not isinstance(location, np.str):
+    if not isinstance(location, str):
         raise TypeError(
             f"location need to be a string but was a {type(location)}")
     if location[0] != "/":
