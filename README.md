@@ -1,6 +1,6 @@
 # gigaanalysis
 
-version 0.5.0
+version 0.5.1
 
 This library provides a collection of classes and functions for analysing datasets which are of the form of one independent and one dependent variable.
 This is very common in condensed matter physics experiments and gigaanalysis was produced for use in high magnetic field facilities.

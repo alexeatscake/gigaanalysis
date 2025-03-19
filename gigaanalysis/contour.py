@@ -160,7 +160,7 @@ class GP_map():
 
             self.input_y, self.input_z, self.input_x = \
                 parse.unroll_dataset(dataset, look_up=look_up)
-            self.input_x = self.input_x.astype(np.float_)
+            self.input_x = self.input_x.astype(np.float64)
             if key_y:
                 self.input_x, self.input_y = self.input_y, self.input_x
         elif isinstance(dataset, np.ndarray) and dataset.ndim == 2 \
